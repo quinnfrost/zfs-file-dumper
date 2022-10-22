@@ -1,11 +1,21 @@
 #!/bin/bash
+# This file takes in an object id and output parsed file info
+. ./common.lib
 
-# OBJECT_INFO=$(cat 'reg.txt')
-# echo $OBJECT_INFO
+[ "$OBJECT_INFO" = "" ] && [ "$1" != "" ] && OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}/${DATASET}" ${1-'227078'})
 
 if [ "$OBJECT_INFO" = "" ]
 then
 	./write_log.sh "No object in scope"
+	exit
+fi
+
+if [[ $OBJECT_INFO == *"ZFS plain file"* ]]
+then
+	./write_log.sh "Object type plain file"
+else
+	./write_log.sh "$OBJECT_INFO"
+	./write_log.sh "Object is not a file"
 	exit
 fi
 
@@ -49,7 +59,7 @@ REGX_NAME='/([^/]*)$'
 [[ $FILE_PATH =~ $REGX_NAME ]]
 	FILE_NAME=${BASH_REMATCH[1]}
 
-REGX_PATH='(.*)/[^/]+$'
+REGX_PATH='(.*/)[^/]+$'
 [[ $FILE_PATH =~ $REGX_PATH ]]
 	FILE_PATH=${BASH_REMATCH[1]}
 
@@ -65,14 +75,22 @@ if [[ $FILE_NAME = "" ]] \
 || [[ $DUMP_OFFSET = "" ]]
 then
 	./write_log.sh "Fail to grip some attribute"
+	# echo $FILE_NAME
+	# echo $FILE_PATH
+	# echo $ACCESS_TIME
+	# echo $MODIFIED_TIME
+	# echo $CHANGE_TIME
+	# echo $CREATION_TIME
+	# echo $SIZE
+	# echo $DUMP_OFFSET
 	exit
 fi
 
-# echo $FILE_NAME
-# echo $FILE_PATH
-# echo $ACCESS_TIME
-# echo $MODIFIED_TIME
-# echo $CHANGE_TIME
-# echo $CREATION_TIME
-# echo $SIZE
-# echo $DUMP_OFFSET
+	echo $FILE_NAME
+	echo $FILE_PATH
+	echo $ACCESS_TIME
+	echo $MODIFIED_TIME
+	echo $CHANGE_TIME
+	echo $CREATION_TIME
+	echo $SIZE
+	echo $DUMP_OFFSET
