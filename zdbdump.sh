@@ -1,6 +1,6 @@
 #!/bin/bash
 # Dump file by Object ID
-# Todos: 多个Indirect node全部获取
+# Todos:
 
 # Only print info
 DRYRUN="1"
@@ -19,7 +19,8 @@ ACCESS_TIME=""
 MODIFIED_TIME=""
 CHANGE_TIME=""
 CREATION_TIME=""
-DUMP_OFFSET=""
+OFFSETS=""
+OFFSET_LEN=""
 
 START_TIME=$(date +%s%3N)
 
@@ -68,11 +69,17 @@ then
 	fi
 fi
 # Dump the file
-./write_log.sh "Started to dump at $DUMP_OFFSET"
-if [ $DRYRUN -ne 1 ]
-then
-	$ZDB --read-block -e $POOLNAME ${DUMP_OFFSET}:r > "$FILE_PATH$FILE_NAME"
-fi
+# for i in "${OFFSETS[@]}"
+INDEX=0
+while [[ $INDEX -le $((OFFSET_LEN-1)) ]]
+do
+	./write_log.sh "Started to dump $INDEX/$((OFFSET_LEN-1)) at "${OFFSETS[$INDEX]}""
+	if [ $DRYRUN -ne 1 ]
+	then
+		$ZDB --read-block -e $POOLNAME ${OFFSETS[$INDEX]}:r >> "$FILE_PATH$FILE_NAME"
+	fi
+	INDEX=$((INDEX+1))
+done
 ./write_log.sh "Dumped ${FILE_PATH}${FILE_NAME}"
 # Cut the file to its actual size
 if [ $DRYRUN -ne 1 ]

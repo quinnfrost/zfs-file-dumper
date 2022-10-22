@@ -32,7 +32,7 @@ REGX='path\s+(/[^
 ]+).*ctime\s+([^
 ]+).*crtime\s+([^
 ]+).*size\s+([^
-]+).*Indirect blocks:\s+.* L0 (0:[^ ]*)'
+]+).*Indirect blocks:\s+.* (0 +L0.*)'
 
 if [[ $OBJECT_INFO =~ $REGX ]]
 then
@@ -40,6 +40,7 @@ then
 	# do
 	# 	echo ${BASH_REMATCH[$i]}
 	# done
+	# echo ${#BASH_REMATCH[@]}
 
 	FILE_PATH=${BASH_REMATCH[1]}
 	ACCESS_TIME=${BASH_REMATCH[2]}
@@ -54,7 +55,6 @@ else
 	exit
 fi
 
-
 REGX_NAME='/([^/]*)$'
 [[ $FILE_PATH =~ $REGX_NAME ]]
 	FILE_NAME=${BASH_REMATCH[1]}
@@ -63,6 +63,18 @@ REGX_PATH='(.*/)[^/]+$'
 [[ $FILE_PATH =~ $REGX_PATH ]]
 	FILE_PATH=${BASH_REMATCH[1]}
 
+REGX_OFFSET='.*L0 (0:[^ ]*)'
+REGX_INDEX='0'
+while [[ $DUMP_OFFSET =~ $REGX_OFFSET ]]
+do
+	CURRENT=$(printf "$DUMP_OFFSET" | sed -n '1p')
+	[[ $CURRENT =~ $REGX_OFFSET ]]
+		OFFSETS[$REGX_INDEX]=${BASH_REMATCH[1]}
+		# printf "${BASH_REMATCH[1]}\n"
+		DUMP_OFFSET=$(printf "$DUMP_OFFSET" | sed '1d')
+		REGX_INDEX=$((REGX_INDEX+1))
+done
+OFFSET_LEN=$REGX_INDEX
 
 # Check if something is missing
 if [[ $FILE_NAME = "" ]] \
@@ -75,17 +87,6 @@ if [[ $FILE_NAME = "" ]] \
 || [[ $DUMP_OFFSET = "" ]]
 then
 	./write_log.sh "Fail to grip some attribute"
-	# echo $FILE_NAME
-	# echo $FILE_PATH
-	# echo $ACCESS_TIME
-	# echo $MODIFIED_TIME
-	# echo $CHANGE_TIME
-	# echo $CREATION_TIME
-	# echo $SIZE
-	# echo $DUMP_OFFSET
-	exit
-fi
-
 	echo $FILE_NAME
 	echo $FILE_PATH
 	echo $ACCESS_TIME
@@ -94,3 +95,14 @@ fi
 	echo $CREATION_TIME
 	echo $SIZE
 	echo $DUMP_OFFSET
+	exit
+fi
+
+	# echo $FILE_NAME
+	# echo $FILE_PATH
+	# echo $ACCESS_TIME
+	# echo $MODIFIED_TIME
+	# echo $CHANGE_TIME
+	# echo $CREATION_TIME
+	# echo $SIZE
+	# echo $DUMP_OFFSET
