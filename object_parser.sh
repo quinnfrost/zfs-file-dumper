@@ -6,22 +6,22 @@
 
 if [ "$OBJECT_INFO" = "" ]
 then
-	./write_log.sh "No object in scope"
+	./write_log.sh WARN "($OBJECT_ID)No object in scope"
 	exit
 fi
 
 if [[ $OBJECT_INFO == *"ZFS plain file"* ]]
 then
-	./write_log.sh "Object type plain file"
+	./write_log.sh "Object type ZFS plain file"
 else
-	./write_log.sh "$OBJECT_INFO"
-	./write_log.sh "Object is not a file"
+	./write_log.sh WARN "$OBJECT_INFO"
+	./write_log.sh WARN "($OBJECT_ID)Object is not a file"
 	exit
 fi
 
-if [ $(echo "$OBJECT_INFO" |wc -l) -le 1 ]
+if [ $(echo "$OBJECT_INFO" |wc -l) -le 5 ]
 then
-	./write_log.sh "Object is only 1 line"
+	./write_log.sh WARN "($OBJECT_ID)Object is too 1 short"
 	exit
 fi
 
@@ -51,7 +51,7 @@ then
 	DUMP_OFFSET=${BASH_REMATCH[7]}
 
 else
-	./write_log.sh "No Object info found"
+	./write_log.sh WARN "($OBJECT_ID)No Object info found"
 	exit
 fi
 
@@ -86,7 +86,7 @@ if [[ $FILE_NAME = "" ]] \
 || [[ $SIZE = "" ]] \
 || [[ $DUMP_OFFSET = "" ]]
 then
-	./write_log.sh "Fail to grip some attribute"
+	./write_log.sh WARN "($OBJECT_ID)Fail to grip some attribute"
 	echo $FILE_NAME
 	echo $FILE_PATH
 	echo $ACCESS_TIME
