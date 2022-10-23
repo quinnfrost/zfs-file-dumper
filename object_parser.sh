@@ -1,6 +1,6 @@
 #!/bin/bash
 # This file takes in an object id and output parsed file info
-. ./common.lib
+. ./common.sh
 
 [ "$OBJECT_INFO" = "" ] && [ "$1" != "" ] && OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}/${DATASET}" ${1-'227078'})
 

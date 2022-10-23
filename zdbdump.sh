@@ -1,6 +1,5 @@
 #!/bin/bash
 # Dump file by Object ID
-# Todos:
 
 # Only print info
 DRYRUN="1"
@@ -9,7 +8,7 @@ DRYRUN="1"
 # DUMP_DIR="."
 # POOLNAME="hdd-1T"
 # DATASET="smbfiles"
-. ./common.lib
+. ./common.sh
 
 OBJECT_ID=${1-'227078'}
 FILE_NAME=""
@@ -24,6 +23,7 @@ OFFSET_LEN=""
 
 START_TIME=$(date +%s%3N)
 
+[[ $LOGFILE != "" ]] && [[ $ERRORFILE != "" ]] && rm $LOGFILE
 ./write_log.sh "Start processing ${OBJECT_ID}"
 # OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}${DATASET}" $OBJECT_ID)
 # Parse object info
@@ -43,44 +43,74 @@ then
 	if [ $EXIST_SIZE -eq $SIZE ]
 	then
 		./write_log.sh "Size identical"
+		SIZECORRECT="1"
 	else
 		./write_log.sh "Size not match"
 	fi
 
-	TIME_FORMAT="%d%b%y:%H:%M:%S"
+	TIME_FORMAT="%Y%m%d %H:%M:%S"
 	EXIST_ATIME=$(stat --format="%x" "$FILE_PATH$FILE_NAME")
 	EXIST_ATIME=$(date +"$TIME_FORMAT" --date="$EXIST_ATIME")
 	DUMP_ATIME=$(date +"$TIME_FORMAT" --date="$ACCESS_TIME")
-	./write_log.sh $EXIST_ATIME
-	./write_log.sh $DUMP_ATIME
+	# ./write_log.sh $EXIST_ATIME
+	# ./write_log.sh $DUMP_ATIME
 
 	EXIST_MTIME=$(stat --format="%y" "$FILE_PATH$FILE_NAME")
 	EXIST_MTIME=$(date +"$TIME_FORMAT" --date="$EXIST_MTIME")
 	DUMP_MTIME=$(date +"$TIME_FORMAT" --date="$MODIFIED_TIME")
-	./write_log.sh $EXIST_MTIME
-	./write_log.sh $DUMP_MTIME
+	# ./write_log.sh $EXIST_MTIME
+	# ./write_log.sh $DUMP_MTIME
 
-	if [[ $EXIST_ATIME == $ACCESS_TIME ]] \
-	&& [[ $EXIST_MTIME == $MODIFIED_TIME ]]
+	if [[ $EXIST_ATIME = $DUMP_ATIME ]] \
+	&& [[ $EXIST_MTIME = $DUMP_MTIME ]]
 	then
 		./write_log.sh "Time identical"
+		TIMECORRECT="1"
 	else
 		./write_log.sh "Time not match"
 	fi
+	[[ $SIZECORRECT = "1" ]] && [[ $TIMECORRECT = "1" ]] && \
+	./write_log.sh WARN "Identical file of $FILE_PATH$FILE_NAME found, skipping" ; return 0
 fi
 # Dump the file
 # for i in "${OFFSETS[@]}"
 INDEX=0
+REGX_PSIZE=".*(\w+):(\w+):(\w+)"
+VDEV=""
+SUM_OFFSET=""
+SUM_PSIZE="0"
 while [[ $INDEX -le $((OFFSET_LEN-1)) ]]
 do
-	./write_log.sh "Started to dump $INDEX/$((OFFSET_LEN-1)) at "${OFFSETS[$INDEX]}""
-	if [ $DRYRUN -ne 1 ]
+	# ./write_log.sh "Started to dump $INDEX/$((OFFSET_LEN-1)) at "${OFFSETS[$INDEX]}""
+	# if [ $DRYRUN -ne 1 ]
+	# then
+	# 	$ZDB --read-block -e $POOLNAME ${OFFSETS[$INDEX]}:r >> "$FILE_PATH$FILE_NAME"
+	# fi
+	if [[ ${OFFSETS[$INDEX]} =~ $REGX_PSIZE ]]
 	then
-		$ZDB --read-block -e $POOLNAME ${OFFSETS[$INDEX]}:r >> "$FILE_PATH$FILE_NAME"
+		# Todos: 验证block是连续的
+		SUM_PSIZE=$(printf "%X\n" $((0x$SUM_PSIZE + 0x${BASH_REMATCH[3]})))
+	else
+		./write_log.sh WARN "Cannot parse offset:psize of $OBJECT_ID at $FILE_PATH$FILE_NAME"
+		exit
 	fi
 	INDEX=$((INDEX+1))
 done
-./write_log.sh "Dumped ${FILE_PATH}${FILE_NAME}"
+VDEV=${BASH_REMATCH[1]}
+SUM_OFFSET=${BASH_REMATCH[2]}
+if [[ $VDEV != "" ]] \
+&& [[ $SUM_OFFSET != "" ]] \
+&& [[ $SUM_PSIZE != "" ]] \
+&& [[ $SUM_PSIZE -gt 0 ]]
+then
+	./write_log.sh "Started to dump $VDEV:$SUM_OFFSET:$SUM_PSIZE with $OFFSET_LEN of blocks"
+	[ $DRYRUN -ne 1 ] && $ZDB --read-block -e $VDEV:$SUM_OFFSET:$SUM_PSIZE:r >> "$FILE_PATH$FILE_NAME"
+	./write_log.sh "Dumped ${FILE_PATH}${FILE_NAME}"
+else
+	./write_log.sh WARN "Offset missing or invaild"
+	./write_log.sh WARN "Offset in question: $VDEV:$SUM_OFFSET:$SUM_PSIZE"
+fi
+
 # Cut the file to its actual size
 if [ $DRYRUN -ne 1 ]
 then

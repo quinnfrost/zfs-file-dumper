@@ -1,4 +1,0 @@
-ZDB="/usr/local/sbin/zdb"
-DUMP_DIR="."
-POOLNAME="hdd-1T"
-DATASET="smbfiles"
