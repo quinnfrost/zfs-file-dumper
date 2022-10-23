@@ -5,10 +5,10 @@ MTIME=$(stat --format=%y "$1")
 CTIME=$(stat --format=%z "$1")
 CRTIME=$(stat --format=%w "$1")
 
-echo $ATIME
-echo $MTIME
-echo $CTIME
-echo $CRTIME
+echo "Accessed at" $ATIME
+echo "Modified at" $MTIME
+echo "Changed  at" $CTIME
+echo "Created  at" $CRTIME
 
 # touch --no-create --date="${ACCESS_TIME}" --time=atime $FILE_PATH/$FILE_NAME
 # touch --no-create --date="${MODIFIED_TIME}" --time=mtime $FILE_PATH/$FILE_NAME
