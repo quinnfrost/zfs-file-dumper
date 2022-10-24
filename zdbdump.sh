@@ -21,10 +21,9 @@ CREATION_TIME=""
 OFFSETS=""
 OFFSET_LEN=""
 
-START_TIME=$(date +%s%3N)
+DUMP_START_TIME=$(date +%s%3N)
 
 [[ $LOGFILE != "" ]] && [[ $ERRORFILE != "" ]] && rm "$LOGFILE"
-./write_log.sh "Start processing ${OBJECT_ID}"
 # OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}${DATASET}" $OBJECT_ID)
 # Parse object info
 . ./object_parser.sh $OBJECT_ID
@@ -124,7 +123,7 @@ do
 		if [[ 0x$NEXT_OFFSET -ne 0x${BASH_REMATCH[2]} ]] \
 		&& [[ 0x$NEXT_OFFSET -ne 0x00 ]]
 		then
-			./write_log.sh "Started to dump incontinuous block $VDEV:$SUM_OFFSET:$SUM_PSIZE at $SUM_INDEX-$((INDEX-1)) of $((OFFSET_LEN-1)) blocks"
+			./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_PSIZE at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 
 			[ $DRYRUN -ne 1 ] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_PSIZE:r >> "$FILE_PATH$FILE_NAME"
 
@@ -156,14 +155,14 @@ if [[ 0x$NEXT_OFFSET -ne 0 ]] \
 && [[ 0x$SUM_OFFSET -ne 0 ]] \
 && [[ 0x$SUM_PSIZE -ne 0 ]] 
 then
-	./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_PSIZE at $SUM_INDEX-$((INDEX-1)) of $((OFFSET_LEN-1)) blocks"
+	./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_PSIZE at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 	[ $DRYRUN -ne 1 ] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_PSIZE:r >> "$FILE_PATH$FILE_NAME"
 
 # else
 # 	./write_log.sh WARN "Offset missing or invaild"
 # 	./write_log.sh WARN "Offset in question: $VDEV:$SUM_OFFSET:$SUM_PSIZE"
 fi
-./write_log.sh "Dumped ${FILE_PATH}${FILE_NAME}"
+./write_log.sh "Dumped \"${FILE_PATH}${FILE_NAME}\""
 
 # Cut the file to its actual size
 if [ $DRYRUN -ne 1 ]
@@ -179,8 +178,8 @@ then
 fi
 ./write_log.sh "Updated file access time ($ACCESS_TIME) and modified time ($MODIFIED_TIME)"
 
-ELAPSED_TIME=$(expr $(date +%s%3N) - $START_TIME)
-./write_log.sh "Finished $OBJECT_ID at "$FILE_PATH$FILE_NAME" in $((ELAPSED_TIME / 1000)).$((ELAPSED_TIME % 1000)) s"
+DUMP_ELAPSED_TIME=$(expr $(date +%s%3N) - $DUMP_START_TIME)
+./write_log.sh "Finished dumping $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $((DUMP_ELAPSED_TIME / 1000)).$((DUMP_ELAPSED_TIME % 1000)) s"
 
 # echo $FILE_NAME
 # echo $FILE_PATH
