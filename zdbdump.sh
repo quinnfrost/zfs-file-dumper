@@ -7,6 +7,8 @@ DRYRUN="0"
 FORCE="1"
 # Flags used by the zdb -R, rdv mean dump raw, decompress, and verbose on decompress
 RFLAGS="r"
+# Batch dd
+BATCHDD="0"
 
 export ZDB_NO_ZLE
 
@@ -102,8 +104,15 @@ SUM_PSIZE="0"		#! Store the size of continuous block
 SUM_LSIZE="0"
 SUM_INFILE_OFFSET="0"
 SUM_INFILE_LSIZE="0"
-#! Find if any continuous block can be dump together
 
+if [ -e "$FILE_PATH$FILE_NAME" ]
+then
+	./write_log.sh "Removing $FILE_PATH$TEMP_FILENAME"
+	rm "$FILE_PATH$TEMP_FILENAME"
+	[[ $? -ne 0 ]] && ./write_log.sh WARN "No temp file removed"
+fi
+
+#! Find if any continuous block can be dump together
 while [[ $INDEX -le $((OFFSET_LEN-1)) ]]
 do
 	# ./write_log.sh "Started to dump $INDEX/$((OFFSET_LEN-1)) at "${OFFSETS[$INDEX]}""
@@ -163,14 +172,19 @@ do
 				fi
 			fi
 			# Todo: 下面这部分可以考虑挪到大判断之外
-			if [[ 0x$NEXT_INFILE_OFFSET -ne 0x${INFILE_OFFSETS[$INDEX]} ]]
+			if [[ 0x$NEXT_INFILE_OFFSET -ne 0x${INFILE_OFFSETS[$INDEX]} ]] || [[ $BATCHDD -ne 1 ]]
 			then
+				DD_START_TIME=$(date +%s%3N)
 				./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
 				[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc status=none
 				[[ $DRYRUN -ne 1 ]] && :> "$FILE_PATH$TEMP_FILENAME" 
 				SUM_INFILE_OFFSET=${INFILE_OFFSETS[$INDEX]}
 
 				SUM_INFILE_LSIZE=$CURRENT_LSIZE
+
+				DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
+				./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
+
 			else
 				SUM_INFILE_LSIZE=$(printf "%X\n" $((0x$SUM_INFILE_LSIZE + 0x$CURRENT_LSIZE)))	
 			fi
@@ -219,8 +233,13 @@ then
 		./write_log.sh "Started to dump last compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
 	fi
+
+	DD_START_TIME=$(date +%s%3N)
+	./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
 	./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
 	[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc status=none
+	DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
+	./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 
 # else
 # 	./write_log.sh WARN "Offset missing or invaild"
