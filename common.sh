@@ -1,6 +1,8 @@
 ZDB="/usr/local/sbin/zdb"
 DUMP_DIR="/mnt/ankha/zdbdump"
+# DUMP_DIR="./zdbdump"
 POOLNAME="hdd-1T"
 DATASET="smbfiles"
+QUIET="1"
 LOGFILE="./dumpinfo.log"
 ERRORFILE="./dumperr.log"

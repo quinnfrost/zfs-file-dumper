@@ -13,7 +13,7 @@ then
 	exit
 fi
 ./write_log.sh "Starting to parse object $OBJECT_ID"
-[ "$OBJECT_INFO" = "" ] && OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}/${DATASET}" $OBJECT_ID)
+OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}/${DATASET}" $OBJECT_ID)
 
 if [ "$OBJECT_INFO" = "" ]
 then
@@ -74,19 +74,22 @@ REGX_PATH='(.*/)[^/]+$'
 	FILE_PATH=${BASH_REMATCH[1]}
 
 #! Start line by line scan to get all offset:psize
-REGX_OFFSET='\sL0 (0:[^ ]*)'
+REGX_OFFSET='\sL0 (0:[^:]+):.+ ([^L]+)L/([^P]+)P'
 REGX_INDEX='0'
 # DUMP_LINE_COUNT=$(echo "$OBJECT_INFO" |wc -l)
 CURRENT_LINE=$(printf "$DUMP_OFFSET" | sed -n '1p')
 # printf "$DUMP_OFFSET\n"
-# printf "Current line $CURRENT\n"
+# printf "Current line $CURRENT_LINE\n"
 # printf "Line count $DUMP_LINE_COUNT\n"
 while IFS= read -r CURRENT_LINE; do
 	if [[ $CURRENT_LINE =~ $REGX_OFFSET ]]
 	then
-		OFFSETS[$REGX_INDEX]=${BASH_REMATCH[1]}
+		OFFSETS[$REGX_INDEX]=${BASH_REMATCH[1]}:${BASH_REMATCH[2]}/${BASH_REMATCH[3]}
 		# printf "${BASH_REMATCH[0]}\n"	
 		# printf "${BASH_REMATCH[1]}\n"
+		# printf "${BASH_REMATCH[2]}\n"
+		# printf "${BASH_REMATCH[3]}\n"
+		# printf "${OFFSETS[$REGX_INDEX]}\n"
 		# DUMP_OFFSET=$(printf "$DUMP_OFFSET" | sed '1d')
 		# CURRENT=$(printf "$DUMP_OFFSET" | sed -n '1p')
 		REGX_INDEX=$((REGX_INDEX+1))
@@ -113,6 +116,7 @@ then
 	echo $CREATION_TIME
 	echo $SIZE
 	echo $DUMP_OFFSET
+	echo ${OFFSETS[@]}
 	exit
 fi
 

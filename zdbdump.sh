@@ -3,6 +3,12 @@
 
 # Only print info
 DRYRUN="0"
+# Dump even if file exists
+FORCE="1"
+# Flags used by the zdb -R, rdv mean dump raw, decompress, and verbose on decompress
+RFLAGS="r"
+
+export ZDB_NO_ZLE
 
 # ZDB="/usr/local/sbin/zdb"
 # DUMP_DIR="."
@@ -10,7 +16,7 @@ DRYRUN="0"
 # DATASET="smbfiles"
 . ./common.sh
 
-OBJECT_ID=${1-'227078'}
+OBJECT_ID=$1
 FILE_NAME=""
 FILE_PATH=""
 SIZE=""
@@ -70,27 +76,29 @@ then
 		# ./write_log.sh "Dump file a/mtime ($DUMP_ATIME) ($DUMP_MTIME)"
 		TIMECORRECT="0"
 	fi
-	if [[ $SIZECORRECT = "1" ]] && [[ $TIMECORRECT = "1" ]]
+	if [[ $SIZECORRECT = "1" ]] && [[ $TIMECORRECT = "1" ]] && [[ ! $FORCE -ne 0 ]]
 	then
 		./write_log.sh WARN "Identical file of $FILE_PATH$FILE_NAME found, skipping"
 		[ $DRYRUN -ne 1 ] && exit
 	else
-		./write_log.sh WARN "File with same name $FILE_PATH$FILE_NAME found but different($SIZECORRECT $TIMECORRECT), removing and dump again"
+		[[ $FORCE -eq 0 ]] && ./write_log.sh WARN "File with same name $FILE_PATH$FILE_NAME found but different($SIZECORRECT $TIMECORRECT), removing and dump again"
+		[[ $FORCE -eq 1 ]] && ./write_log.sh WARN "File with same name $FILE_PATH$FILE_NAME found but force flag is set($FORCE), removing and dump again"
 		[[ $FILE_PATH$FILE_NAME != "" ]] && rm "$FILE_PATH$FILE_NAME"
 	fi
 fi
-
 
 #! Dump the file
 DUMP_START_TIME=$(date +%s%3N)
 
 INDEX=0
-REGX_PSIZE=".*(\w+):(\w+):(\w+)"
+# REGX_PSIZE=".*(\w+):(\w+):(\w+)"
+REGX_PSIZE=".*(\w+):(\w+):(\w+)\/(\w+)"
 VDEV=""
 NEXT_OFFSET="0"
 SUM_INDEX="0"
 SUM_OFFSET="0"		#! Store the start of continuous block
 SUM_PSIZE="0"		#! Store the size of continuous block
+SUM_LSIZE="0"
 #! Find if any continuous block can be dump together
 
 while [[ $INDEX -le $((OFFSET_LEN-1)) ]]
@@ -104,7 +112,10 @@ do
 	then
 		VDEV=${BASH_REMATCH[1]}
 		CURRENT_OFFSET=${BASH_REMATCH[2]}
-		CURRENT_PSIZE=${BASH_REMATCH[3]}
+		CURRENT_LSIZE=${BASH_REMATCH[3]}
+		CURRENT_PSIZE=${BASH_REMATCH[4]}
+
+		# echo ${BASH_REMATCH[@]}
 
 		#! For SUM_OFFSET = 0 (first time or just dumped), 
 		#!		update it to current offset
@@ -113,28 +124,39 @@ do
 		# echo ------------------------------
 		# echo "Current index $INDEX, Current sum at $SUM_INDEX"
 		# echo "Offset should be $NEXT_OFFSET"
-		# echo "Current offset $CURRENT_OFFSET:$CURRENT_PSIZE"
+		# echo "Current offset $CURRENT_OFFSET:$CURRENT_LSIZE/$CURRENT_PSIZE"
 
 
 		#! For	NEXT_OFFSET != CURRENT_OFFSET (the block is not continuous),
 		#!		SUM_PSIZE >= 0x1000000(16,777,217) (Keep dump size smaller than SPA_MAXBLOCKSIZE, otherwise a ASSERT check 
 		#!			at module/zfs/zio.c:811:zio_create() "(type != ZIO_TYPE_TRIM) implies (psize <= SPA_MAXBLOCKSIZE)"
 		#!			will fail)
-		#!		dump VDEV:SUM_OFFSET:SUM_PSIZE:r
+		#!		CURRENT_LINE != CURRENT_PSIZE (this block is compressed)
+		#!		dump VDEV:SUM_OFFSET:SUM_PSIZE
 		#! 		update NEXT_OFFSET to 0
 		#! 		update SUM_OFFSET to 0
 		#! 		update SUM_PSIZE to 0
 		if ([[ 0x$NEXT_OFFSET -ne 0x${BASH_REMATCH[2]} ]] \
 		&& [[ 0x$NEXT_OFFSET -ne 0x00 ]]) \
-		|| [[ 0x$SUM_PSIZE -ge 0x1000000 ]]
+		|| [[ 0x$SUM_PSIZE -ge 0x1000000 ]] \
+		|| [[ 0x$CURRENT_LSIZE -ne 0x$CURRENT_PSIZE ]]
 		then
-			./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_PSIZE at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+			if [[ 0x$SUM_LSIZE -eq 0x$SUM_PSIZE ]]
+			then
+				RFLAGS="r"
+				./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 
-			[ $DRYRUN -ne 1 ] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_PSIZE:r >> "$FILE_PATH$FILE_NAME"
+			else
+				RFLAGS="rdv"
+				./write_log.sh "Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+			fi
+
+			[ $DRYRUN -ne 1 ] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "$FILE_PATH$FILE_NAME"
 
 			NEXT_OFFSET=$(printf "%X\n" $((0x$CURRENT_OFFSET + 0x$CURRENT_PSIZE)))
 			SUM_OFFSET=$CURRENT_OFFSET
 			SUM_PSIZE=$CURRENT_PSIZE
+			SUM_LSIZE=$CURRENT_LSIZE
 
 			SUM_INDEX=$INDEX
 
@@ -145,12 +167,13 @@ do
 		else
 			NEXT_OFFSET=$(printf "%X\n" $((0x$CURRENT_OFFSET + 0x$CURRENT_PSIZE)))
 			SUM_PSIZE=$(printf "%X\n" $((0x$SUM_PSIZE + 0x$CURRENT_PSIZE)))
+			SUM_LSIZE=$(printf "%X\n" $((0x$SUM_LSIZE + 0x$CURRENT_LSIZE)))
 		fi
 
-		# echo "Continuous block $SUM_OFFSET:$SUM_PSIZE"
+		# echo "Continuous block $SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE"
 		# echo ------------------------------
 	else
-		./write_log.sh WARN "Cannot parse offset:psize of $OBJECT_ID at $FILE_PATH$FILE_NAME"
+		./write_log.sh WARN "Cannot parse offset:lsize/psize of $OBJECT_ID at $FILE_PATH$FILE_NAME"
 		exit
 	fi
 	INDEX=$((INDEX+1))
@@ -160,8 +183,14 @@ if [[ 0x$NEXT_OFFSET -ne 0 ]] \
 && [[ 0x$SUM_OFFSET -ne 0 ]] \
 && [[ 0x$SUM_PSIZE -ne 0 ]] 
 then
-	./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_PSIZE at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-	[ $DRYRUN -ne 1 ] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_PSIZE:r >> "$FILE_PATH$FILE_NAME"
+	if [[ 0x$SUM_LSIZE -eq 0x$SUM_PSIZE ]]
+	then
+		RFLAGS="r"
+	else
+		RFLAGS="rdv"
+	fi
+	./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+	[ $DRYRUN -ne 1 ] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "$FILE_PATH$FILE_NAME"
 
 # else
 # 	./write_log.sh WARN "Offset missing or invaild"
@@ -198,3 +227,5 @@ fi
 # echo $SHA256SUM
 
 ./write_log.sh "Finished $OBJECT_ID at \"$FILE_PATH$FILE_NAME\""
+
+# return 0
