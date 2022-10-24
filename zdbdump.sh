@@ -95,11 +95,13 @@ INDEX=0
 REGX_PSIZE=".*(\w+):(\w+):(\w+)\/(\w+)"
 VDEV=""
 NEXT_OFFSET="0"
+NEXT_INFILE_OFFSET="0"
 SUM_INDEX="0"
 SUM_OFFSET="0"		#! Store the start of continuous block
 SUM_PSIZE="0"		#! Store the size of continuous block
 SUM_LSIZE="0"
 SUM_INFILE_OFFSET="0"
+SUM_INFILE_LSIZE="0"
 #! Find if any continuous block can be dump together
 
 while [[ $INDEX -le $((OFFSET_LEN-1)) ]]
@@ -129,7 +131,8 @@ do
 		# echo ------------------------------
 		# echo "Current index $INDEX, Current sum at $SUM_INDEX"
 		# echo "Offset should be $NEXT_OFFSET"
-		# echo "Current offset $CURRENT_OFFSET:$CURRENT_LSIZE/$CURRENT_PSIZE"
+		# echo "Infile offset should be $NEXT_INFILE_OFFSET"
+		# echo "Current offset ${INFILE_OFFSETS[$INDEX]} $CURRENT_OFFSET:$CURRENT_LSIZE/$CURRENT_PSIZE"
 
 
 		#! For	NEXT_OFFSET != CURRENT_OFFSET (the block is not continuous),
@@ -146,30 +149,36 @@ do
 		|| [[ 0x$SUM_PSIZE -ge 0x1000000 ]] \
 		|| [[ 0x$CURRENT_LSIZE -ne 0x$CURRENT_PSIZE ]]
 		then
-			if [[ 0x$SUM_LSIZE -eq 0x$SUM_PSIZE ]]
+			if [[ 0x$SUM_PSIZE -ne 0x00 ]] # If the first block is a compressed block, there is nothing to dump, so don't
 			then
-				RFLAGS="r"
-				./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+				if [[ 0x$SUM_LSIZE -eq 0x$SUM_PSIZE ]]
+				then
+					RFLAGS="r"
+					./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
+				else
+					RFLAGS="rdv"
+					./write_log.sh "Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
+				fi
+			fi
+			# Todo: 下面这部分可以考虑挪到大判断之外
+			if [[ 0x$NEXT_INFILE_OFFSET -ne 0x${INFILE_OFFSETS[$INDEX]} ]]
+			then
+				./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
+				[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc status=none
+				[[ $DRYRUN -ne 1 ]] && :> "$FILE_PATH$TEMP_FILENAME" 
+				SUM_INFILE_OFFSET=${INFILE_OFFSETS[$INDEX]}
 
+				SUM_INFILE_LSIZE=$CURRENT_LSIZE
 			else
-				RFLAGS="rdv"
-				./write_log.sh "Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+				SUM_INFILE_LSIZE=$(printf "%X\n" $((0x$SUM_INFILE_LSIZE + 0x$CURRENT_LSIZE)))	
 			fi
 
-			./write_log.sh "Writing $SUM_LSIZE bytes into $SUM_INFILE_OFFSET"
-			if [[ $DRYRUN -ne 1 ]]
-			then
-				$ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS > "${FILE_PATH}${TEMP_FILENAME}"
-				dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_LSIZE) conv=notrunc status=none
-				# printf "$(printf '\\x%02X' $DATA)" | 
-			fi
-
-			NEXT_OFFSET=$(printf "%X\n" $((0x$CURRENT_OFFSET + 0x$CURRENT_PSIZE)))
 			SUM_OFFSET=$CURRENT_OFFSET
 			SUM_PSIZE=$CURRENT_PSIZE
 			SUM_LSIZE=$CURRENT_LSIZE
 
-			SUM_INFILE_OFFSET=${INFILE_OFFSETS[$INDEX]}
 			SUM_INDEX=$INDEX
 
 		#! For NEXT_OFFSET = CURRENT_OFFSET (the block is continuous or the first time), 
@@ -177,18 +186,23 @@ do
 		#! For NEXT_OFFSET = 0 (first time or just dumped), 
 		#!		update it to current offset + psize
 		else
-			NEXT_OFFSET=$(printf "%X\n" $((0x$CURRENT_OFFSET + 0x$CURRENT_PSIZE)))
 			SUM_PSIZE=$(printf "%X\n" $((0x$SUM_PSIZE + 0x$CURRENT_PSIZE)))
 			SUM_LSIZE=$(printf "%X\n" $((0x$SUM_LSIZE + 0x$CURRENT_LSIZE)))
+			SUM_INFILE_LSIZE=$(printf "%X\n" $((0x$SUM_INFILE_LSIZE + 0x$CURRENT_LSIZE)))	
 		fi
 
-		# echo "Continuous block $SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE"
+		NEXT_OFFSET=$(printf "%X\n" $((0x$CURRENT_OFFSET + 0x$CURRENT_PSIZE)))
+		NEXT_INFILE_OFFSET=$(printf "%X\n" $((0x${INFILE_OFFSETS[$INDEX]} + 0x$CURRENT_LSIZE)))
+
+		# echo "Continuous block $SUM_OFFSET:$SUM_PSIZE"
+		# echo "Continuous infile block $SUM_INFILE_OFFSET:$SUM_LSIZE"
 		# echo ------------------------------
 	else
 		./write_log.sh WARN "Cannot parse offset:lsize/psize of $OBJECT_ID at $FILE_PATH$FILE_NAME"
 		exit
 	fi
 	INDEX=$((INDEX+1))
+	# [[ $INDEX -eq 10 ]] && exit
 done
 #! If last block is continuous, it needs to be dump at last, otherwise it's already dumped
 if [[ 0x$NEXT_OFFSET -ne 0 ]] \
@@ -199,17 +213,14 @@ then
 	then
 		RFLAGS="r"
 		./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
 	else
 		RFLAGS="rdv"
 		./write_log.sh "Started to dump last compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
 	fi
-
-	./write_log.sh "Writing $SUM_LSIZE bytes into $SUM_INFILE_OFFSET"
-	if [[ $DRYRUN -ne 1 ]]
-	then
-		$ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS > "${FILE_PATH}${TEMP_FILENAME}"
-		dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_LSIZE) conv=notrunc status=none
-	fi
+	./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
+	[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc status=none
 
 # else
 # 	./write_log.sh WARN "Offset missing or invaild"
