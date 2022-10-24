@@ -1,6 +1,7 @@
 #!/bin/bash
 # This file takes in an object id and output parsed file info
 . ./common.sh
+TEMP_FILENAME="dump${RANDOM}.tmp"
 
 PARSE_START_TIME=$(date +%s%3N)
 
@@ -74,7 +75,7 @@ REGX_PATH='(.*/)[^/]+$'
 	FILE_PATH=${BASH_REMATCH[1]}
 
 #! Start line by line scan to get all offset:psize
-REGX_OFFSET='\sL0 (0:[^:]+):.+ ([^L]+)L/([^P]+)P'
+REGX_OFFSET='\s+(\w+)\s+L0 (0:[^:]+):.+ ([^L]+)L/([^P]+)P'
 REGX_INDEX='0'
 # DUMP_LINE_COUNT=$(echo "$OBJECT_INFO" |wc -l)
 CURRENT_LINE=$(printf "$DUMP_OFFSET" | sed -n '1p')
@@ -84,12 +85,15 @@ CURRENT_LINE=$(printf "$DUMP_OFFSET" | sed -n '1p')
 while IFS= read -r CURRENT_LINE; do
 	if [[ $CURRENT_LINE =~ $REGX_OFFSET ]]
 	then
-		OFFSETS[$REGX_INDEX]=${BASH_REMATCH[1]}:${BASH_REMATCH[2]}/${BASH_REMATCH[3]}
+		OFFSETS[$REGX_INDEX]=${BASH_REMATCH[2]}:${BASH_REMATCH[3]}/${BASH_REMATCH[4]}
+		INFILE_OFFSETS[$REGX_INDEX]="${BASH_REMATCH[1]}"
 		# printf "${BASH_REMATCH[0]}\n"	
 		# printf "${BASH_REMATCH[1]}\n"
 		# printf "${BASH_REMATCH[2]}\n"
 		# printf "${BASH_REMATCH[3]}\n"
+		# printf "${BASH_REMATCH[4]}\n"
 		# printf "${OFFSETS[$REGX_INDEX]}\n"
+		# printf "${INFILE_OFFSETS[$REGX_INDEX]}\n"
 		# DUMP_OFFSET=$(printf "$DUMP_OFFSET" | sed '1d')
 		# CURRENT=$(printf "$DUMP_OFFSET" | sed -n '1p')
 		REGX_INDEX=$((REGX_INDEX+1))
@@ -105,7 +109,8 @@ if [[ $FILE_NAME = "" ]] \
 || [[ $CHANGE_TIME = "" ]] \
 || [[ $CREATION_TIME = "" ]] \
 || [[ $SIZE = "" ]] \
-|| [[ $OFFSET_LEN -eq 0 ]]
+|| [[ $OFFSET_LEN -eq 0 ]] \
+|| [[ ${#OFFSETS[@]} -ne ${#INFILE_OFFSETS[@]} ]]
 then
 	./write_log.sh WARN "($OBJECT_ID)Fail to grip some attribute"
 	echo $FILE_NAME
@@ -117,6 +122,7 @@ then
 	echo $SIZE
 	echo $DUMP_OFFSET
 	echo ${OFFSETS[@]}
+	echo ${INFILE_OFFSETS[@]}
 	exit
 fi
 
@@ -129,6 +135,7 @@ fi
 	# echo $SIZE
 	# echo ${OFFSETS[@]}
 	# echo $OFFSET_LEN
+	# echo ${INFILE_OFFSETS[@]}
 
 PARSE_ELAPSED_TIME=$(expr $(date +%s%3N) - $PARSE_START_TIME)
 ./write_log.sh "Finished parsing $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $(echo "scale=3; $PARSE_ELAPSED_TIME / 1000" | bc) s"
