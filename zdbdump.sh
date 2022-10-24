@@ -150,7 +150,6 @@ do
 				RFLAGS="rdv"
 				./write_log.sh "Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 			fi
-
 			[ $DRYRUN -ne 1 ] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "$FILE_PATH$FILE_NAME"
 
 			NEXT_OFFSET=$(printf "%X\n" $((0x$CURRENT_OFFSET + 0x$CURRENT_PSIZE)))
@@ -186,10 +185,11 @@ then
 	if [[ 0x$SUM_LSIZE -eq 0x$SUM_PSIZE ]]
 	then
 		RFLAGS="r"
+		./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 	else
 		RFLAGS="rdv"
+		./write_log.sh "Started to dump last compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 	fi
-	./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 	[ $DRYRUN -ne 1 ] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "$FILE_PATH$FILE_NAME"
 
 # else
