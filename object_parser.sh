@@ -73,17 +73,16 @@ REGX_PATH='(.*/)[^/]+$'
 [[ $FILE_PATH =~ $REGX_PATH ]]
 	FILE_PATH=${BASH_REMATCH[1]}
 
+#! Start line by line scan to get all offset:psize
 REGX_OFFSET='\sL0 (0:[^ ]*)'
 REGX_INDEX='0'
-
 # DUMP_LINE_COUNT=$(echo "$OBJECT_INFO" |wc -l)
-CURRENT=$(printf "$DUMP_OFFSET" | sed -n '1p')
+CURRENT_LINE=$(printf "$DUMP_OFFSET" | sed -n '1p')
 # printf "$DUMP_OFFSET\n"
 # printf "Current line $CURRENT\n"
 # printf "Line count $DUMP_LINE_COUNT\n"
-
-while IFS= read -r CURRENT; do
-	if [[ $CURRENT =~ $REGX_OFFSET ]]
+while IFS= read -r CURRENT_LINE; do
+	if [[ $CURRENT_LINE =~ $REGX_OFFSET ]]
 	then
 		OFFSETS[$REGX_INDEX]=${BASH_REMATCH[1]}
 		# printf "${BASH_REMATCH[0]}\n"	
@@ -93,11 +92,6 @@ while IFS= read -r CURRENT; do
 		REGX_INDEX=$((REGX_INDEX+1))
 	fi
 done < <(printf '%s\n' "$DUMP_OFFSET")
-
-# while [[ $CURRENT =~ $REGX_OFFSET ]]
-# do
-
-# done
 OFFSET_LEN=$REGX_INDEX
 
 # Check if something is missing
@@ -133,4 +127,4 @@ fi
 	# echo $OFFSET_LEN
 
 PARSE_ELAPSED_TIME=$(expr $(date +%s%3N) - $PARSE_START_TIME)
-./write_log.sh "Finished parsing $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $((PARSE_ELAPSED_TIME / 1000)).$((PARSE_ELAPSED_TIME % 1000)) s"
+./write_log.sh "Finished parsing $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $(echo "scale=3; $PARSE_ELAPSED_TIME / 1000" | bc) s"

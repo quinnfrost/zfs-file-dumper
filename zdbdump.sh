@@ -21,9 +21,7 @@ CREATION_TIME=""
 OFFSETS=""
 OFFSET_LEN=""
 
-DUMP_START_TIME=$(date +%s%3N)
-
-[[ $LOGFILE != "" ]] && [[ $ERRORFILE != "" ]] && rm "$LOGFILE"
+[[ $LOGFILE != "" ]] && [[ $ERRORFILE != "" ]] && rm "$LOGFILE" # && rm "$ERRORFILE"
 # OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}${DATASET}" $OBJECT_ID)
 # Parse object info
 . ./object_parser.sh $OBJECT_ID
@@ -75,14 +73,17 @@ then
 	if [[ $SIZECORRECT = "1" ]] && [[ $TIMECORRECT = "1" ]]
 	then
 		./write_log.sh WARN "Identical file of $FILE_PATH$FILE_NAME found, skipping"
-		exit
+		[ $DRYRUN -ne 1 ] && exit
 	else
 		./write_log.sh WARN "File with same name $FILE_PATH$FILE_NAME found but different($SIZECORRECT $TIMECORRECT), removing and dump again"
 		[[ $FILE_PATH$FILE_NAME != "" ]] && rm "$FILE_PATH$FILE_NAME"
 	fi
 fi
-# Dump the file
-# for i in "${OFFSETS[@]}"
+
+
+#! Dump the file
+DUMP_START_TIME=$(date +%s%3N)
+
 INDEX=0
 REGX_PSIZE=".*(\w+):(\w+):(\w+)"
 VDEV=""
@@ -115,13 +116,17 @@ do
 		# echo "Current offset $CURRENT_OFFSET:$CURRENT_PSIZE"
 
 
-		#! For NEXT_OFFSET != CURRENT_OFFSET (the block is not continuous),
+		#! For	NEXT_OFFSET != CURRENT_OFFSET (the block is not continuous),
+		#!		SUM_PSIZE >= 0x1000000(16,777,217) (Keep dump size smaller than SPA_MAXBLOCKSIZE, otherwise a ASSERT check 
+		#!			at module/zfs/zio.c:811:zio_create() "(type != ZIO_TYPE_TRIM) implies (psize <= SPA_MAXBLOCKSIZE)"
+		#!			will fail)
 		#!		dump VDEV:SUM_OFFSET:SUM_PSIZE:r
 		#! 		update NEXT_OFFSET to 0
 		#! 		update SUM_OFFSET to 0
 		#! 		update SUM_PSIZE to 0
-		if [[ 0x$NEXT_OFFSET -ne 0x${BASH_REMATCH[2]} ]] \
-		&& [[ 0x$NEXT_OFFSET -ne 0x00 ]]
+		if ([[ 0x$NEXT_OFFSET -ne 0x${BASH_REMATCH[2]} ]] \
+		&& [[ 0x$NEXT_OFFSET -ne 0x00 ]]) \
+		|| [[ 0x$SUM_PSIZE -ge 0x1000000 ]]
 		then
 			./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_PSIZE at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 
@@ -162,7 +167,11 @@ then
 # 	./write_log.sh WARN "Offset missing or invaild"
 # 	./write_log.sh WARN "Offset in question: $VDEV:$SUM_OFFSET:$SUM_PSIZE"
 fi
-./write_log.sh "Dumped \"${FILE_PATH}${FILE_NAME}\""
+
+DUMP_ELAPSED_TIME=$(expr $(date +%s%3N) - $DUMP_START_TIME)
+./write_log.sh "Finished dumping $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $(echo "scale=3; $DUMP_ELAPSED_TIME / 1000" | bc) s \
+(appx. $(echo "scale=3; $DUMP_ELAPSED_TIME / $OFFSET_LEN / 1000" | bc) s per block)"
+#! Dump end
 
 # Cut the file to its actual size
 if [ $DRYRUN -ne 1 ]
@@ -178,9 +187,6 @@ then
 fi
 ./write_log.sh "Updated file access time ($ACCESS_TIME) and modified time ($MODIFIED_TIME)"
 
-DUMP_ELAPSED_TIME=$(expr $(date +%s%3N) - $DUMP_START_TIME)
-./write_log.sh "Finished dumping $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $((DUMP_ELAPSED_TIME / 1000)).$((DUMP_ELAPSED_TIME % 1000)) s"
-
 # echo $FILE_NAME
 # echo $FILE_PATH
 # echo $ACCESS_TIME
@@ -190,3 +196,5 @@ DUMP_ELAPSED_TIME=$(expr $(date +%s%3N) - $DUMP_START_TIME)
 # echo $SIZE
 # echo $DUMP_OFFSET
 # echo $SHA256SUM
+
+./write_log.sh "Finished $OBJECT_ID at \"$FILE_PATH$FILE_NAME\""
