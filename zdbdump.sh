@@ -8,7 +8,8 @@ FORCE="1"
 # Flags used by the zdb -R, rdv mean dump raw, decompress, and verbose on decompress
 RFLAGS="r"
 # Batch dd
-BATCHDD="0"
+BATCHDD="1"
+# STATUSDD="status=none"
 
 export ZDB_NO_ZLE
 
@@ -176,15 +177,13 @@ do
 			then
 				DD_START_TIME=$(date +%s%3N)
 				./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
-				[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc status=none
+				[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
 				[[ $DRYRUN -ne 1 ]] && :> "$FILE_PATH$TEMP_FILENAME" 
-				SUM_INFILE_OFFSET=${INFILE_OFFSETS[$INDEX]}
-
-				SUM_INFILE_LSIZE=$CURRENT_LSIZE
-
 				DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
 				./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 
+				SUM_INFILE_OFFSET=${INFILE_OFFSETS[$INDEX]}
+				SUM_INFILE_LSIZE=$CURRENT_LSIZE
 			else
 				SUM_INFILE_LSIZE=$(printf "%X\n" $((0x$SUM_INFILE_LSIZE + 0x$CURRENT_LSIZE)))	
 			fi
@@ -237,7 +236,7 @@ then
 	DD_START_TIME=$(date +%s%3N)
 	./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
 	./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
-	[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc status=none
+	[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
 	DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
 	./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 
@@ -250,7 +249,7 @@ if [ -e "$FILE_PATH$FILE_NAME" ]
 then
 	./write_log.sh "Removing $FILE_PATH$TEMP_FILENAME"
 	rm "$FILE_PATH$TEMP_FILENAME"
-	[[ $? -ne 0 ]] && ./write_log.sh WARN "No temp file removed"
+	[[ $? -ne 0 ]] && ./write_log.sh WARN "Failed to remove temp file"
 fi
 
 DUMP_ELAPSED_TIME=$(expr $(date +%s%3N) - $DUMP_START_TIME)
@@ -262,6 +261,7 @@ DUMP_ELAPSED_TIME=$(expr $(date +%s%3N) - $DUMP_START_TIME)
 if [ $DRYRUN -ne 1 ]
 then
 	truncate --size=$SIZE "$FILE_PATH$FILE_NAME"
+	[[ $? -ne 0 ]] && ./write_log.sh WARN "Truncate failed"
 fi
 ./write_log.sh "Truncated file with size ${SIZE}"
 # Update file timestamp
