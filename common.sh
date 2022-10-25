@@ -4,7 +4,7 @@ DUMP_DIR="/mnt/ankha/zdbdump"
 TEMP_FILENAME="dump.tmp"
 POOLNAME="hdd-1T"
 DATASET="smbfiles"
-QUIET="1"
+QUIET="0"
 LOGFILE="./dumpinfo.log"
 ERRORFILE="./dumperr.log"
 
