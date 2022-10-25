@@ -7,6 +7,7 @@ DATASET="smbfiles"
 QUIET="0"
 LOGFILE="./dumpinfo.log"
 ERRORFILE="./dumperr.log"
+LOGARCHIVE_PATH="./log/"
 
 # param 1: file
 # param 2: offset

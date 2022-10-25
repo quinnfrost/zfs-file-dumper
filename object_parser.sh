@@ -1,7 +1,6 @@
 #!/bin/bash
 # This file takes in an object id and output parsed file info
 . ./common.sh
-TEMP_FILENAME="dump${RANDOM}.tmp"
 
 PARSE_START_TIME=$(date +%s%3N)
 

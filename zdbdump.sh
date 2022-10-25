@@ -30,7 +30,11 @@ CREATION_TIME=""
 OFFSETS=""
 OFFSET_LEN=""
 
-[[ $LOGFILE != "" ]] && [[ $ERRORFILE != "" ]] && rm "$LOGFILE" # && rm "$ERRORFILE"
+if [[ $LOGFILE != "" ]] || [[ $ERRORFILE != "" ]] 
+then
+	. ./archive_logfile.sh $OBJECT_ID
+	rm "$LOGFILE" # && rm "$ERRORFILE"
+fi
 # OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}${DATASET}" $OBJECT_ID)
 #! Parse object info
 . ./object_parser.sh $OBJECT_ID
@@ -108,6 +112,7 @@ SUM_INFILE_OFFSET="0"
 SUM_INFILE_LSIZE="0"
 
 # Check if temp file name is taken
+TEMP_FILENAME="dump${RANDOM}.tmp"
 if [ -e "$FILE_PATH$TEMP_FILENAME" ]
 then
 	./write_log.sh WARN "[$OBJECT_ID]Temp file conflict"
@@ -245,18 +250,26 @@ then
 		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
 	fi
 
-	DD_START_TIME=$(date +%s%3N)
-	./write_log.sh "[$OBJECT_ID]Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
-	[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
-	DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
-	./write_log.sh "[$OBJECT_ID]Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
+	if [[ -e "$FILE_PATH$FILE_NAME" ]]
+	then
+		DD_START_TIME=$(date +%s%3N)
+		./write_log.sh "[$OBJECT_ID]Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
+		[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
+		DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
+		./write_log.sh "[$OBJECT_ID]Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
+	else
+		./write_log.sh "[$OBJECT_ID]File ${FILE_PATH}${FILE_NAME} not yet exist, renaming temp file"
+		[[ $DRYRUN -ne 1 ]] && mv "${FILE_PATH}${TEMP_FILENAME}" "${FILE_PATH}${FILE_NAME}"
+		[[ $? -ne 0 ]] && ./write_log.sh WARN "[$OBJECT_ID]Failed to rename temp file" && exit
+	fi
+
 
 # else
 # 	./write_log.sh WARN "Offset missing or invaild"
 # 	./write_log.sh WARN "Offset in question: $VDEV:$SUM_OFFSET:$SUM_PSIZE"
 fi
 # Remove temp file
-if [ -e "$FILE_PATH$FILE_NAME" ]
+if [ -e "$FILE_PATH$TEMP_FILENAME" ]
 then
 	./write_log.sh "[$OBJECT_ID]Removing $FILE_PATH$TEMP_FILENAME"
 	rm "$FILE_PATH$TEMP_FILENAME"
