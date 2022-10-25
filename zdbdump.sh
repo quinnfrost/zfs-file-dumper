@@ -42,20 +42,20 @@ FILE_PATH="${DUMP_DIR}${FILE_PATH}"
 #! Get path ready for dump
 if [ ! -d "$FILE_PATH" ]
 then
-	./write_log.sh "[$OBJECT_ID]Creating path $FILE_PATH"
+	. ./write_log.sh "Creating path $FILE_PATH"
 	[ $DRYRUN -ne 1 ] && mkdir --parents "$FILE_PATH"
 fi
 #! Check if file exists. If so, check time and size to determine if it needs to dump again.
 if [ -e "$FILE_PATH$FILE_NAME" ]
 then
-	# ./write_log.sh "File exists"
+	# . ./write_log.sh "File exists"
 	EXIST_SIZE=$(stat --printf="%s" "$FILE_PATH$FILE_NAME")
 	if [ $EXIST_SIZE -eq $SIZE ]
 	then
-		# ./write_log.sh "Size identical"
+		# . ./write_log.sh "Size identical"
 		SIZECORRECT="1"
 	else
-		./write_log.sh "[$OBJECT_ID]Size not match($SIZE->$EXIST_SIZE)"
+		. ./write_log.sh "Size not match($SIZE->$EXIST_SIZE)"
 		SIZECORRECT="0"
 	fi
 
@@ -63,35 +63,35 @@ then
 	EXIST_ATIME=$(stat --format="%x" "$FILE_PATH$FILE_NAME")
 	EXIST_ATIME=$(date +"$TIME_FORMAT" --date="$EXIST_ATIME")
 	DUMP_ATIME=$(date +"$TIME_FORMAT" --date="$ACCESS_TIME")
-	# ./write_log.sh $EXIST_ATIME
-	# ./write_log.sh $DUMP_ATIME
+	# . ./write_log.sh $EXIST_ATIME
+	# . ./write_log.sh $DUMP_ATIME
 
 	EXIST_MTIME=$(stat --format="%y" "$FILE_PATH$FILE_NAME")
 	EXIST_MTIME=$(date +"$TIME_FORMAT" --date="$EXIST_MTIME")
 	DUMP_MTIME=$(date +"$TIME_FORMAT" --date="$MODIFIED_TIME")
-	# ./write_log.sh $EXIST_MTIME
-	# ./write_log.sh $DUMP_MTIME
+	# . ./write_log.sh $EXIST_MTIME
+	# . ./write_log.sh $DUMP_MTIME
 
 	if [[ $EXIST_MTIME = $DUMP_MTIME ]] \
 	# && [[ $EXIST_ATIME = $DUMP_ATIME ]]
 	then
-		# ./write_log.sh "Time identical"
+		# . ./write_log.sh "Time identical"
 		TIMECORRECT="1"
 	else
-		./write_log.sh "Time not match([$OBJECT_ID]$DUMP_MTIME->$EXIST_MTIME)"
-		# ./write_log.sh "Exist file a/mtime ($EXIST_ATIME) ($EXIST_MTIME)"
-		# ./write_log.sh "Dump file a/mtime ($DUMP_ATIME) ($DUMP_MTIME)"
+		. ./write_log.sh "Time not match($DUMP_MTIME->$EXIST_MTIME)"
+		# . ./write_log.sh "Exist file a/mtime ($EXIST_ATIME) ($EXIST_MTIME)"
+		# . ./write_log.sh "Dump file a/mtime ($DUMP_ATIME) ($DUMP_MTIME)"
 		TIMECORRECT="0"
 	fi
 	if [[ $SIZECORRECT = "1" ]] && [[ $TIMECORRECT = "1" ]] && [[ ! $FORCE -ne 0 ]]
 	then
-		./write_log.sh WARN "[$OBJECT_ID]Identical file of $FILE_PATH$FILE_NAME found, skipping"
+		. ./write_log.sh WARN "Identical file of $FILE_PATH$FILE_NAME found, skipping"
 		[ $DRYRUN -ne 1 ] && exit
 	else
-		[[ $FORCE -eq 0 ]] && ./write_log.sh WARN "[$OBJECT_ID]File with same name $FILE_PATH$FILE_NAME found but different($SIZECORRECT $TIMECORRECT), removing and dump again"
-		[[ $FORCE -eq 1 ]] && ./write_log.sh WARN "[$OBJECT_ID]File with same name $FILE_PATH$FILE_NAME found but force flag is set($FORCE), removing and dump again"
+		[[ $FORCE -eq 0 ]] && . ./write_log.sh WARN "File with same name $FILE_PATH$FILE_NAME found but different($SIZECORRECT $TIMECORRECT), removing and dump again"
+		[[ $FORCE -eq 1 ]] && . ./write_log.sh WARN "File with same name $FILE_PATH$FILE_NAME found but force flag is set($FORCE), removing and dump again"
 		[[ $FILE_PATH$FILE_NAME != "" ]] && rm "$FILE_PATH$FILE_NAME"
-		[[ $? -ne 0 ]] && ./write_log.sh WARN "[$OBJECT_ID]Failed to remove exist file" && exit
+		[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to remove exist file" && exit
 	fi
 fi
 
@@ -115,16 +115,16 @@ SUM_INFILE_LSIZE="0"
 TEMP_FILENAME="dump${RANDOM}.tmp"
 if [ -e "$FILE_PATH$TEMP_FILENAME" ]
 then
-	./write_log.sh WARN "[$OBJECT_ID]Temp file conflict"
+	. ./write_log.sh WARN "Temp file conflict"
 	exit
 	# rm "$FILE_PATH$TEMP_FILENAME"
-	# [[ $? -ne 0 ]] && ./write_log.sh WARN "No temp file removed"
+	# [[ $? -ne 0 ]] && . ./write_log.sh WARN "No temp file removed"
 fi
 
 #! Find if any continuous block can be dump together
 while [[ $INDEX -le $((OFFSET_LEN-1)) ]]
 do
-	# ./write_log.sh "Started to dump $INDEX/$((OFFSET_LEN-1)) at "${OFFSETS[$INDEX]}""
+	# . ./write_log.sh "Started to dump $INDEX/$((OFFSET_LEN-1)) at "${OFFSETS[$INDEX]}""
 	# if [ $DRYRUN -ne 1 ]
 	# then
 	# 	$ZDB --read-block -e $POOLNAME ${OFFSETS[$INDEX]}:r >> "$FILE_PATH$FILE_NAME"
@@ -172,11 +172,11 @@ do
 				if [[ 0x$SUM_LSIZE -eq 0x$SUM_PSIZE ]]
 				then
 					RFLAGS="r"
-					./write_log.sh "[$OBJECT_ID]Started to dump block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+					. ./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
 				else
 					RFLAGS="rdv"
-					./write_log.sh "[$OBJECT_ID]Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+					. ./write_log.sh "Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
 				fi
 			fi
@@ -187,15 +187,15 @@ do
 				if [[ -e "$FILE_PATH$FILE_NAME" ]]
 				then
 					DD_START_TIME=$(date +%s%3N)
-					./write_log.sh "[$OBJECT_ID]Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
+					. ./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
 					# [[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
 					[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) conv=notrunc $STATUSDD
 					DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
-					./write_log.sh "[$OBJECT_ID]Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
+					. ./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 				else
-					./write_log.sh "[$OBJECT_ID]File ${FILE_PATH}${FILE_NAME} not yet exist, renaming temp file"
+					. ./write_log.sh "File ${FILE_PATH}${FILE_NAME} not yet exist, renaming temp file"
 					[[ $DRYRUN -ne 1 ]] && mv "${FILE_PATH}${TEMP_FILENAME}" "${FILE_PATH}${FILE_NAME}"
-					[[ $? -ne 0 ]] && ./write_log.sh WARN "[$OBJECT_ID]Failed to rename temp file" && exit
+					[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to rename temp file" && exit
 				fi
 				[[ $DRYRUN -ne 1 ]] && :> "$FILE_PATH$TEMP_FILENAME" 
 
@@ -228,7 +228,7 @@ do
 		# echo "Continuous infile block $SUM_INFILE_OFFSET:$SUM_LSIZE"
 		# echo ------------------------------
 	else
-		./write_log.sh WARN "[$OBJECT_ID]Cannot parse offset:lsize/psize of $OBJECT_ID at $FILE_PATH$FILE_NAME"
+		. ./write_log.sh WARN "Cannot parse offset:lsize/psize of $OBJECT_ID at $FILE_PATH$FILE_NAME"
 		exit
 	fi
 	INDEX=$((INDEX+1))
@@ -242,42 +242,42 @@ then
 	if [[ 0x$SUM_LSIZE -eq 0x$SUM_PSIZE ]]
 	then
 		RFLAGS="r"
-		./write_log.sh "[$OBJECT_ID]Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+		. ./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
 	else
 		RFLAGS="rdv"
-		./write_log.sh "[$OBJECT_ID]Started to dump last compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
+		. ./write_log.sh "Started to dump last compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
 	fi
 
 	if [[ -e "$FILE_PATH$FILE_NAME" ]]
 	then
 		DD_START_TIME=$(date +%s%3N)
-		./write_log.sh "[$OBJECT_ID]Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
+		. ./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
 		[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
 		DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
-		./write_log.sh "[$OBJECT_ID]Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
+		. ./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 	else
-		./write_log.sh "[$OBJECT_ID]File ${FILE_PATH}${FILE_NAME} not yet exist, renaming temp file"
+		. ./write_log.sh "File ${FILE_PATH}${FILE_NAME} not yet exist, renaming temp file"
 		[[ $DRYRUN -ne 1 ]] && mv "${FILE_PATH}${TEMP_FILENAME}" "${FILE_PATH}${FILE_NAME}"
-		[[ $? -ne 0 ]] && ./write_log.sh WARN "[$OBJECT_ID]Failed to rename temp file" && exit
+		[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to rename temp file" && exit
 	fi
 
 
 # else
-# 	./write_log.sh WARN "Offset missing or invaild"
-# 	./write_log.sh WARN "Offset in question: $VDEV:$SUM_OFFSET:$SUM_PSIZE"
+# 	. ./write_log.sh WARN "Offset missing or invaild"
+# 	. ./write_log.sh WARN "Offset in question: $VDEV:$SUM_OFFSET:$SUM_PSIZE"
 fi
 # Remove temp file
 if [ -e "$FILE_PATH$TEMP_FILENAME" ]
 then
-	./write_log.sh "[$OBJECT_ID]Removing $FILE_PATH$TEMP_FILENAME"
+	. ./write_log.sh "Removing $FILE_PATH$TEMP_FILENAME"
 	rm "$FILE_PATH$TEMP_FILENAME"
-	[[ $? -ne 0 ]] && ./write_log.sh WARN "[$OBJECT_ID]Failed to remove temp file"
+	[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to remove temp file"
 fi
 
 DUMP_ELAPSED_TIME=$(expr $(date +%s%3N) - $DUMP_START_TIME)
-./write_log.sh "[$OBJECT_ID]Finished dumping $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $(echo "scale=3; $DUMP_ELAPSED_TIME / 1000" | bc) s \
+. ./write_log.sh "Finished dumping $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $(echo "scale=3; $DUMP_ELAPSED_TIME / 1000" | bc) s \
 (appx. $(echo "scale=3; $DUMP_ELAPSED_TIME / $OFFSET_LEN / 1000" | bc) s per block)"
 #! Dump end
 
@@ -287,12 +287,12 @@ then
 	truncate --size=$SIZE "$FILE_PATH$FILE_NAME"
 	if [[ $? -eq 0 ]]
 	then
-		./write_log.sh "[$OBJECT_ID]Truncated file with size ${SIZE}"
+		. ./write_log.sh "Truncated file with size ${SIZE}"
 	else
-		./write_log.sh WARN "[$OBJECT_ID]Truncate failed"
+		. ./write_log.sh WARN "Truncate failed"
 	fi
 else
-	./write_log.sh "[$OBJECT_ID]Truncate file with size ${SIZE}"
+	. ./write_log.sh "Truncate file with size ${SIZE}"
 fi
 
 # Update file timestamp
@@ -301,7 +301,7 @@ then
 	touch --no-create --date="${ACCESS_TIME}" --time=atime "$FILE_PATH$FILE_NAME"
 	touch --no-create --date="${MODIFIED_TIME}" --time=mtime "$FILE_PATH$FILE_NAME"
 fi
-./write_log.sh "[$OBJECT_ID]Updated file access time ($ACCESS_TIME) and modified time ($MODIFIED_TIME)"
+. ./write_log.sh "Updated file access time ($ACCESS_TIME) and modified time ($MODIFIED_TIME)"
 
 # echo $FILE_NAME
 # echo $FILE_PATH
@@ -313,6 +313,6 @@ fi
 # echo $DUMP_OFFSET
 # echo $SHA256SUM
 
-./write_log.sh "[$OBJECT_ID]Finished $OBJECT_ID at \"$FILE_PATH$FILE_NAME\""
+. ./write_log.sh "Finished $OBJECT_ID at \"$FILE_PATH$FILE_NAME\""
 
 # return 0

@@ -12,25 +12,25 @@ then
 	./write_log WARN "No object id given"
 	exit
 fi
-./write_log.sh "Starting to parse object $OBJECT_ID"
+. ./write_log.sh "Starting to parse object $OBJECT_ID"
 OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}/${DATASET}" $OBJECT_ID)
 
 if [ "$OBJECT_INFO" = "" ]
 then
-	./write_log.sh WARN "($OBJECT_ID)No object in scope"
+	. ./write_log.sh WARN "No object in scope"
 	exit
 fi
 
-if [[ $OBJECT_INFO != *"ZFS plain file"* ]]
+if [[ "$OBJECT_INFO" != *"ZFS plain file"* ]]
 then
-	./write_log.sh WARN "$OBJECT_INFO"
-	./write_log.sh WARN "($OBJECT_ID)Object is not a file"
+	. ./write_log.sh WARN "$OBJECT_INFO"
+	. ./write_log.sh WARN "Object is not a file"
 	exit
 fi
 
 if [ $(echo "$OBJECT_INFO" |wc -l) -le 5 ]
 then
-	./write_log.sh WARN "($OBJECT_ID)Object is too short"
+	. ./write_log.sh WARN "Object is too short"
 	exit
 fi
 
@@ -60,8 +60,8 @@ then
 	DUMP_OFFSET=${BASH_REMATCH[7]}
 
 else
-	./write_log.sh WARN "($OBJECT_ID)No Object info found"
-	./write_log.sh WARN $OBJECT_INFO
+	. ./write_log.sh WARN "No Object info found"
+	. ./write_log.sh WARN $OBJECT_INFO
 	exit
 fi
 
@@ -111,18 +111,18 @@ if [[ $FILE_NAME = "" ]] \
 || [[ $OFFSET_LEN -eq 0 ]] \
 || [[ ${#OFFSETS[@]} -ne ${#INFILE_OFFSETS[@]} ]]
 then
-	./write_log.sh WARN "($OBJECT_ID)Fail to grip some attribute"
-	echo $FILE_NAME
-	echo $FILE_PATH
-	echo $ACCESS_TIME
-	echo $MODIFIED_TIME
-	echo $CHANGE_TIME
-	echo $CREATION_TIME
-	echo $SIZE
-	echo $DUMP_OFFSET
-	echo ${OFFSETS[@]}
-	echo ${INFILE_OFFSETS[@]}
-	exit
+	. ./write_log.sh WARN "Fail to grip some attribute"
+	# echo $FILE_NAME
+	# echo $FILE_PATH
+	# echo $ACCESS_TIME
+	# echo $MODIFIED_TIME
+	# echo $CHANGE_TIME
+	# echo $CREATION_TIME
+	# echo $SIZE
+	# echo $DUMP_OFFSET
+	# echo ${OFFSETS[@]}
+	# echo ${INFILE_OFFSETS[@]}
+	# exit
 fi
 
 	# echo $FILE_NAME
@@ -137,4 +137,4 @@ fi
 	# echo ${INFILE_OFFSETS[@]}
 
 PARSE_ELAPSED_TIME=$(expr $(date +%s%3N) - $PARSE_START_TIME)
-./write_log.sh "Finished parsing $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $(echo "scale=3; $PARSE_ELAPSED_TIME / 1000" | bc) s"
+. ./write_log.sh "Finished parsing $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $(echo "scale=3; $PARSE_ELAPSED_TIME / 1000" | bc) s"
