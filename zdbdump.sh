@@ -4,7 +4,7 @@
 # Only print info
 DRYRUN="0"
 # Dump even if file exists
-FORCE="1"
+FORCE="0"
 # Flags used by the zdb -R, rdv mean dump raw, decompress, and verbose on decompress
 RFLAGS="r"
 # Batch dd
@@ -20,6 +20,7 @@ export ZDB_NO_ZLE
 . ./common.sh
 
 OBJECT_ID=$1
+SKIP="0"
 FILE_NAME=""
 FILE_PATH=""
 SIZE=""
@@ -33,7 +34,7 @@ OFFSET_LEN=""
 if [[ $LOGFILE != "" ]] || [[ $ERRORFILE != "" ]] 
 then
 	. ./archive_logfile.sh $OBJECT_ID
-	rm "$LOGFILE" # && rm "$ERRORFILE"
+	# rm "$LOGFILE" # && rm "$ERRORFILE"
 fi
 # OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}${DATASET}" $OBJECT_ID)
 #! Parse object info
@@ -86,7 +87,7 @@ then
 	if [[ $SIZECORRECT = "1" ]] && [[ $TIMECORRECT = "1" ]] && [[ ! $FORCE -ne 0 ]]
 	then
 		. ./write_log.sh WARN "Identical file of $FILE_PATH$FILE_NAME found, skipping"
-		[ $DRYRUN -ne 1 ] && exit
+		[ $DRYRUN -ne 1 ] && SKIP="1"
 	else
 		[[ $FORCE -eq 0 ]] && . ./write_log.sh WARN "File with same name $FILE_PATH$FILE_NAME found but different($SIZECORRECT $TIMECORRECT), removing and dump again"
 		[[ $FORCE -eq 1 ]] && . ./write_log.sh WARN "File with same name $FILE_PATH$FILE_NAME found but force flag is set($FORCE), removing and dump again"
@@ -95,6 +96,8 @@ then
 	fi
 fi
 
+if [[ $SKIP -ne 1 ]]
+then
 #! Dump the file
 DUMP_START_TIME=$(date +%s%3N)
 
@@ -315,4 +318,4 @@ fi
 
 . ./write_log.sh "Finished $OBJECT_ID at \"$FILE_PATH$FILE_NAME\""
 
-# return 0
+fi # Dump process is skiped

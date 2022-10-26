@@ -5,12 +5,13 @@ FORCEDUMPID="1"
 
 DUMP_OBJECT_LIST="0"
 DUMP_OBJECT_ID_LIST="1"
+DUMP_OBJECT_FILE="0"
 
 DUMP_FILENAME="./plainfilelist.txt"
 DUMP_OBJECT_ID_FILENAME="./objects.txt"
 
 . ./archive_logfile.sh
-[[ -e $LOGFILE ]] && rm $LOGFILE
+# [[ -e $LOGFILE ]] && rm $LOGFILE
 
 [[ $DUMP_OBJECT_LIST = "1" ]] && $ZDB -e -AAA -d "${POOLNAME}/${DATASET}" 0:-1:f > "${DUMP_FILENAME}"
 
@@ -52,11 +53,11 @@ then
 			|| [[ $OFFSET_LEN -eq 0 ]] \
 			|| [[ ${#OFFSETS[@]} -ne ${#INFILE_OFFSETS[@]} ]]
 			then
-				. ./write_log.sh WARN "Something is missing in $OBJECT_ID at ${FILE_PATH:-'no_path'}${FILE_NAME:-'no_name'}"
+				. ./write_log.sh WARN "Something is missing in $OBJECT_ID at \"${FILE_PATH:-'no_path'}${FILE_NAME:-'no_name'}\""
 				LINE_INDEX=$((LINE_INDEX+1))
 				continue
 			fi
-			printf '%s\n' "$OBJECT_ID				$(numfmt --to=iec-i $SIZE)				\"${FILE_PATH}${FILE_NAME}\"" >> "$DUMP_OBJECT_ID_FILENAME"
+			printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$DUMP_OBJECT_ID_FILENAME"
 			# echo ${BASH_REMATCH[0]}
 			# echo ${BASH_REMATCH[1]}
 			# DUMP_OBJECT_LIST[$((LINE_INDEX-LINE_START))]=${BASH_REMATCH[1]}
@@ -73,4 +74,19 @@ then
 	OBJECT_COUNT=$(wc --lines < "$DUMP_OBJECT_ID_FILENAME")
 	FINDID_ELAPSED_TIME=$(expr $(date +%s%3N) - $FINDID_START_TIME)
 	. ./write_log.sh "Done listing $((LINE_COUNT-LINE_START)) objects in $(echo "scale=3; $FINDID_ELAPSED_TIME/1000" | bc) s, appx. $(echo "scale=3; $FINDID_ELAPSED_TIME/$((LINE_COUNT-LINE_START))/1000" | bc) s per object"
+	exit
+fi
+
+if [[ $DUMP_OBJECT_FILE -eq 1 ]]
+then
+	echo $DUMP_OBJECT_FILE
+	declare -a EX_PATH=("/.recycle")
+	for ITEM in "${EX_PATH[@]}"
+	do
+		if [[ "$FILE_PATH" =~ ^$ITEM* ]]
+		then
+			. ./write_log.sh WARN "Object file \"$FILE_PATH$FILE_NAME\" match exclude rule $ITEM, skipping"
+			continue
+		fi
+	done
 fi

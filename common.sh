@@ -1,6 +1,6 @@
 ZDB="/usr/local/sbin/zdb"
-DUMP_DIR="/mnt/ankha/zdbdump"
-# DUMP_DIR="./zdbdump"
+# DUMP_DIR="/mnt/ankha/zdbdump"
+DUMP_DIR="./zdbdump"
 TEMP_FILENAME="dump.tmp"
 POOLNAME="hdd-1T"
 DATASET="smbfiles"
