@@ -2,7 +2,7 @@
 
 . ./common.sh
 
-DRYRUN="1"
+DRYRUN="0"
 
 CHECKPOINT_FILE="./dump_checkpoint.txt"
 DUMP_FILELIST="./plainfilelist.txt"

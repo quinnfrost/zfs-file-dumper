@@ -8,9 +8,6 @@ DUMP_OBJECT_ID_LIST="1"
 DUMP_OBJECT_FILE="0"
 
 DUMP_FILENAME="./plainfilelist.txt"
-DUMP_OBJECT_ID_FILENAME="./objects.txt"
-DUMP_EMBEDDED_FILENAME="./embedded_objects.txt"
-DUMP_ZEROED_FILENAME="./zero_sized_objects.txt"
 
 . ./archive_logfile.sh
 # [[ -e $LOGFILE ]] && rm $LOGFILE

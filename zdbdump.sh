@@ -57,9 +57,11 @@ then
 		if [[ $DUMP_OFFSET =~ .*EMBEDDED.* ]]
 		then
 			. ./write_log.sh WARN "Embedded file \"${FILE_PATH}${FILE_NAME}\" found at $OBJECT_ID, skipping"
+			printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$DUMP_EMBEDDED_FILENAME"
 		elif [[ $SIZE -eq 0 ]]
 		then
 			. ./write_log.sh WARN "Zero sized file \"${FILE_PATH}${FILE_NAME}\" found at $OBJECT_ID, skipping"
+			printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$DUMP_ZEROED_FILENAME"
 		else
 			. ./write_log.sh WARN "Something is missing in $OBJECT_ID at \"${FILE_PATH:-'no_path'}${FILE_NAME:-'no_name'}\", skipping"
 		fi
@@ -364,7 +366,7 @@ fi
 # echo $SIZE
 # echo $DUMP_OFFSET
 # echo $SHA256SUM
-
+printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$DUMP_OBJECT_ID_FILENAME"
 . ./write_log.sh "Finished $OBJECT_ID at \"$FILE_PATH$FILE_NAME\""
 else
 printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$SKIP_LOG"
