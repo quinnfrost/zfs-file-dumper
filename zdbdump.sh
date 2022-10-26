@@ -4,7 +4,7 @@
 # Only print info
 DRYRUN="0"
 # Dump even if file exists
-FORCE="0"
+FORCE="1"
 # Flags used by the zdb -R, rdv mean dump raw, decompress, and verbose on decompress
 RFLAGS="r"
 # Batch dd
@@ -40,6 +40,10 @@ fi
 #! Parse object info
 . ./object_parser.sh $OBJECT_ID
 FILE_PATH="${DUMP_DIR}${FILE_PATH}"
+#! Determine if the object is going to skipped
+
+
+
 #! Get path ready for dump
 if [ ! -d "$FILE_PATH" ]
 then
@@ -176,11 +180,11 @@ do
 				then
 					RFLAGS="r"
 					. ./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
+					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' > ./stderrout.log)
 				else
 					RFLAGS="rdv"
 					. ./write_log.sh "Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
+					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' > ./stderrout.log)
 				fi
 			fi
 			# Todo: 下面这部分可以考虑挪到大判断之外
@@ -246,11 +250,11 @@ then
 	then
 		RFLAGS="r"
 		. ./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
+		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' > ./stderrout.log)
 	else
 		RFLAGS="rdv"
 		. ./write_log.sh "Started to dump last compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}"
+		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' > ./stderrout.log)
 	fi
 
 	if [[ -e "$FILE_PATH$FILE_NAME" ]]

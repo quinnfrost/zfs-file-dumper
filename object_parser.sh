@@ -7,15 +7,17 @@ PARSE_START_TIME=$(date +%s%3N)
 if [[ ${1} != "" ]]
 then
 	OBJECT_ID=${1}
-elif [[ $OBJECT_ID = "" ]]
-then
-	./write_log WARN "No object id given"
-	exit
 fi
-. ./write_log.sh "Starting to parse object $OBJECT_ID"
-OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}/${DATASET}" $OBJECT_ID)
 
-if [ "$OBJECT_INFO" = "" ]
+if [[ "$OBJECT_INFO" = "" ]] \
+&& [[ $OBJECT_ID != "" ]]
+then
+	. ./write_log.sh "Starting to parse object $OBJECT_ID"
+	OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}/${DATASET}" $OBJECT_ID)
+fi
+
+if [[ $OBJECT_ID = "" ]] \
+&& [[ "$OBJECT_INFO" = "" ]]
 then
 	. ./write_log.sh WARN "No object in scope"
 	exit
@@ -41,8 +43,7 @@ REGX='path\s+(/[^
 ]+).*ctime\s+([^
 ]+).*crtime\s+([^
 ]+).*size\s+([^
-]+).*Indirect blocks:
-(.*)segment*'
+]+).*Indirect blocks:'
 if [[ $OBJECT_INFO =~ $REGX ]]
 then
 	# for((i=1;i<10;i++));
@@ -50,6 +51,7 @@ then
 	# 	echo ${BASH_REMATCH[$i]}
 	# done
 	# echo ${#BASH_REMATCH[@]}
+	# echo "${BASH_REMATCH[0]}"
 
 	FILE_PATH=${BASH_REMATCH[1]}
 	ACCESS_TIME=${BASH_REMATCH[2]}
@@ -57,12 +59,16 @@ then
 	CHANGE_TIME=${BASH_REMATCH[4]}
 	CREATION_TIME=${BASH_REMATCH[5]}
 	SIZE=${BASH_REMATCH[6]}
-	DUMP_OFFSET=${BASH_REMATCH[7]}
+	REGX_BLOCKS='Indirect blocks:
+(.*)segment*'
+	if [[ $OBJECT_INFO =~ $REGX_BLOCKS ]]
+	then
+		DUMP_OFFSET=${BASH_REMATCH[1]}
+	fi
 
 else
 	. ./write_log.sh WARN "No Object info found"
 	. ./write_log.sh WARN $OBJECT_INFO
-	exit
 fi
 
 REGX_NAME='/([^/]*)$'
@@ -132,6 +138,7 @@ fi
 	# echo $CHANGE_TIME
 	# echo $CREATION_TIME
 	# echo $SIZE
+	# echo $DUMP_OFFSET
 	# echo ${OFFSETS[@]}
 	# echo $OFFSET_LEN
 	# echo ${INFILE_OFFSETS[@]}
