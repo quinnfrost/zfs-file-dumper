@@ -12,7 +12,7 @@ fi
 if [[ "$OBJECT_INFO" = "" ]] \
 && [[ $OBJECT_ID != "" ]]
 then
-	. ./write_log.sh "Starting to parse object $OBJECT_ID"
+	. ./write_log.sh "----------Starting to parse object $OBJECT_ID ----------"
 	OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}/${DATASET}" $OBJECT_ID)
 fi
 

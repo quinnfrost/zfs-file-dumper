@@ -5,6 +5,7 @@
 DRYRUN="0"
 # Dump even if file exists
 FORCE="1"
+NOEXCLUDE="0"
 # Flags used by the zdb -R, rdv mean dump raw, decompress, and verbose on decompress
 RFLAGS="r"
 # Batch dd
@@ -41,17 +42,54 @@ fi
 . ./object_parser.sh $OBJECT_ID
 FILE_PATH="${DUMP_DIR}${FILE_PATH}"
 #! Determine if the object is going to skipped
+if [[ $DRYRUN -ne 1 ]]
+then
+	if [[ $FILE_NAME = "" ]] \
+	|| [[ $FILE_PATH = "" ]] \
+	|| [[ $ACCESS_TIME = "" ]] \
+	|| [[ $MODIFIED_TIME = "" ]] \
+	|| [[ $CHANGE_TIME = "" ]] \
+	|| [[ $CREATION_TIME = "" ]] \
+	|| [[ $SIZE = "" ]] \
+	|| [[ $OFFSET_LEN -eq 0 ]] \
+	|| [[ ${#OFFSETS[@]} -ne ${#INFILE_OFFSETS[@]} ]]
+	then
+		if [[ $DUMP_OFFSET =~ .*EMBEDDED.* ]]
+		then
+			. ./write_log.sh WARN "Embedded file \"${FILE_PATH}${FILE_NAME}\" found at $OBJECT_ID, skipping"
+		elif [[ $SIZE -eq 0 ]]
+		then
+			. ./write_log.sh WARN "Zero sized file \"${FILE_PATH}${FILE_NAME}\" found at $OBJECT_ID, skipping"
+		else
+			. ./write_log.sh WARN "Something is missing in $OBJECT_ID at \"${FILE_PATH:-'no_path'}${FILE_NAME:-'no_name'}\", skipping"
+		fi
+		SKIP="1"
+	fi
 
-
+	if [[ $NOEXCLUDE != "1" ]]
+	then
+		declare -a REGX_EX_PATH=(".*/.recycle/.*")
+		for ITEM in "${REGX_EX_PATH[@]}"
+		do
+			if [[ "$FILE_PATH" =~ $ITEM ]]
+			then
+				. ./write_log.sh WARN "Object file \"$FILE_PATH$FILE_NAME\" match exclude rule $ITEM, skipping"
+				SKIP="1"
+			fi
+		done
+	fi
+fi
 
 #! Get path ready for dump
-if [ ! -d "$FILE_PATH" ]
+if [ ! -d "$FILE_PATH" ] \
+&& [[ $SKIP -ne 1 ]]
 then
 	. ./write_log.sh "Creating path $FILE_PATH"
-	[ $DRYRUN -ne 1 ] && mkdir --parents "$FILE_PATH"
+	[[ $DRYRUN -ne 1 ]] && mkdir --parents "$FILE_PATH"
 fi
 #! Check if file exists. If so, check time and size to determine if it needs to dump again.
-if [ -e "$FILE_PATH$FILE_NAME" ]
+if [ -e "$FILE_PATH$FILE_NAME" ] \
+&& [[ $SKIP -ne 1 ]]
 then
 	# . ./write_log.sh "File exists"
 	EXIST_SIZE=$(stat --printf="%s" "$FILE_PATH$FILE_NAME")
@@ -180,11 +218,11 @@ do
 				then
 					RFLAGS="r"
 					. ./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' > ./stderrout.log)
+					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' >> ./stderrout.log)
 				else
 					RFLAGS="rdv"
 					. ./write_log.sh "Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' > ./stderrout.log)
+					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' >> ./stderrout.log)
 				fi
 			fi
 			# Todo: 下面这部分可以考虑挪到大判断之外
@@ -250,11 +288,11 @@ then
 	then
 		RFLAGS="r"
 		. ./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' > ./stderrout.log)
+		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' >>./stderrout.log)
 	else
 		RFLAGS="rdv"
 		. ./write_log.sh "Started to dump last compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' > ./stderrout.log)
+		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' >> ./stderrout.log)
 	fi
 
 	if [[ -e "$FILE_PATH$FILE_NAME" ]]
@@ -291,12 +329,19 @@ DUMP_ELAPSED_TIME=$(expr $(date +%s%3N) - $DUMP_START_TIME)
 # Cut the file to its actual size
 if [ $DRYRUN -ne 1 ]
 then
-	truncate --size=$SIZE "$FILE_PATH$FILE_NAME"
-	if [[ $? -eq 0 ]]
+	# DUMP_FILESIZE=$(du -k "$FILE_PATH$FILE_NAME" | cut -f1)
+	DUMP_FILESIZE=$(stat --printf="%s" "$FILE_PATH$FILE_NAME")
+	if [[ $SIZE -gt $DUMP_FILESIZE ]]
 	then
-		. ./write_log.sh "Truncated file with size ${SIZE}"
+		. ./write_log.sh WARN "Dumped file at $FILE_PATH$FILE_NAME is smaller than it should be($DUMP_FILESIZE->$SIZE), skipped truncate"
 	else
-		. ./write_log.sh WARN "Truncate failed"
+		truncate --size=$SIZE "$FILE_PATH$FILE_NAME"
+		if [[ $? -eq 0 ]]
+		then
+			. ./write_log.sh "Truncated file with size ${SIZE}"
+		else
+			. ./write_log.sh WARN "Truncate failed"
+		fi
 	fi
 else
 	. ./write_log.sh "Truncate file with size ${SIZE}"
@@ -321,5 +366,6 @@ fi
 # echo $SHA256SUM
 
 . ./write_log.sh "Finished $OBJECT_ID at \"$FILE_PATH$FILE_NAME\""
-
+else
+printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$SKIP_LOG"
 fi # Dump process is skiped
