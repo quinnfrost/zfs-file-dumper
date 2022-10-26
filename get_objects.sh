@@ -7,7 +7,7 @@ DUMP_OBJECT_LIST="0"
 DUMP_OBJECT_ID_LIST="1"
 DUMP_OBJECT_FILE="0"
 
-DUMP_FILENAME="./plainfiledump.txt"
+DUMP_FILENAME="./plainfilelist.txt"
 DUMP_OBJECT_ID_FILENAME="./objects.txt"
 DUMP_EMBEDDED_FILENAME="./embedded_objects.txt"
 DUMP_ZEROED_FILENAME="./zero_sized_objects.txt"
@@ -28,9 +28,8 @@ then
 	FINDID_START_TIME=$(date +%s%3N)
 	. ./write_log.sh "Start to list all plain file objects"
 
-	# Default 3
-	LAST_DIVIDE_LINE="144810"
-	LINE_START=$((LAST_DIVIDE_LINE+1))
+	# Default 4
+	LINE_START="552"
 	LINE_INDEX=$LINE_START
 	LINE_COUNT=$(wc --lines < "$DUMP_FILENAME")
 	# REGX_OBJECT_ID="^\s+([0-9]+).*ZFS.*"
@@ -42,15 +41,11 @@ then
 	while [[ $LINE_INDEX -le $LINE_COUNT ]]
 	do
 		LINE=$(sed -n ${LINE_INDEX}p $DUMP_FILENAME)
-		echo "Looking $LINE_INDEX"
 		# LINE=$(head -n $LINE file | tail -1)
-		if [[ $LINE =~ $REGX_DIVIDE ]]
+		if [[ $LINE =~ $REGX_OBJECT_ID ]]
 		then
-			OBJECT_INFO=$(sed -n $LAST_DIVIDE_LINE,$((LINE_INDEX-1))p $DUMP_FILENAME)
-			echo "$OBJECT_INFO"
-			LAST_DIVIDE_LINE=$LINE_INDEX
-			. ./object_parser.sh
-
+			OBJECT_ID=${BASH_REMATCH[1]}
+			. ./object_parser.sh $OBJECT_ID
 			if [[ $FILE_NAME = "" ]] \
 			|| [[ $FILE_PATH = "" ]] \
 			|| [[ $ACCESS_TIME = "" ]] \
@@ -76,7 +71,6 @@ then
 				continue
 			fi
 			printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$DUMP_OBJECT_ID_FILENAME"
-			. ./write_log.sh "Parsed $LAST_DIVIDE_LINE to $((LINE_INDEX-1))"
 			# echo ${BASH_REMATCH[0]}
 			# echo ${BASH_REMATCH[1]}
 			# DUMP_OBJECT_LIST[$((LINE_INDEX-LINE_START))]=${BASH_REMATCH[1]}
@@ -89,36 +83,6 @@ then
 		fi
 		LINE_INDEX=$((LINE_INDEX+1))
 	done
-
-	OBJECT_INFO=$(sed -n $LAST_DIVIDE_LINE,$((LINE_INDEX-1))p $DUMP_FILENAME)
-	LAST_DIVIDE_LINE=$LINE_INDEX
-	. ./object_parser.sh
-
-	if [[ $FILE_NAME = "" ]] \
-	|| [[ $FILE_PATH = "" ]] \
-	|| [[ $ACCESS_TIME = "" ]] \
-	|| [[ $MODIFIED_TIME = "" ]] \
-	|| [[ $CHANGE_TIME = "" ]] \
-	|| [[ $CREATION_TIME = "" ]] \
-	|| [[ $SIZE = "" ]] \
-	|| [[ $OFFSET_LEN -eq 0 ]] \
-	|| [[ ${#OFFSETS[@]} -ne ${#INFILE_OFFSETS[@]} ]]
-	then
-		if [[ $DUMP_OFFSET =~ .*EMBEDDED.* ]]
-		then
-			. ./write_log.sh WARN "Embedded file \"${FILE_PATH}${FILE_NAME}\" found at $OBJECT_ID"
-			printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$DUMP_EMBEDDED_FILENAME"
-		elif [[ $SIZE -eq 0 ]]
-		then
-			. ./write_log.sh WARN "Zero sized file \"${FILE_PATH}${FILE_NAME}\" found at $OBJECT_ID"
-			printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$DUMP_ZEROED_FILENAME"
-		else
-			. ./write_log.sh WARN "Something is missing in $OBJECT_ID at \"${FILE_PATH:-'no_path'}${FILE_NAME:-'no_name'}\""
-		fi
-		LINE_INDEX=$((LINE_INDEX+1))
-		continue
-	fi
-	printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$DUMP_OBJECT_ID_FILENAME"
 	
 	OBJECT_COUNT=$(wc --lines < "$DUMP_OBJECT_ID_FILENAME")
 	FINDID_ELAPSED_TIME=$(expr $(date +%s%3N) - $FINDID_START_TIME)
