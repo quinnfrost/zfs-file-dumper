@@ -7,6 +7,12 @@ DRYRUN="0"
 CHECKPOINT_FILE="./dump_checkpoint.txt"
 DUMP_FILELIST="./plainfilelist.txt"
 
+if [[ $LOGFILE != "" ]] || [[ $ERRORFILE != "" ]] 
+then
+	. ./archive_logfile.sh $OBJECT_ID
+	# rm "$LOGFILE" # && rm "$ERRORFILE"
+fi
+
 DUMPFILE_START_TIME=$(date +%s%3N)
 . ./write_log.sh "Start to dump all files"
 
@@ -26,7 +32,6 @@ else
 fi
 
 LINE_INDEX=$LINE_START
-echo $LINE_INDEX
 LINE_COUNT=$(wc --lines < "$DUMP_FILELIST")
 REGX_OBJECT_ID="^\s+([0-9]+).*ZFS.*"
 
@@ -37,7 +42,6 @@ REGX_OBJECT_ID="^\s+([0-9]+).*ZFS.*"
 while [[ $LINE_INDEX -le $LINE_COUNT ]]
 do
 	LINE=$(sed -n ${LINE_INDEX}p $DUMP_FILELIST)
-	echo $LINE
 	if [[ $LINE = "" ]]
 	then
 		. ./write_log.sh WARN "Empty line found at $LINE_INDEX"
@@ -62,6 +66,23 @@ do
 		. ./write_log.sh "appx. $(echo "scale=3; $DUMPFILE_ELAPSED_TIME/$((LINE_INDEX-LINE_START))/1000" | bc) s per object, estimate $(echo "scale=3; $((LINE_COUNT-LINE_INDEX))*$DUMPFILE_ELAPSED_TIME/$((LINE_INDEX-LINE_START))/60000" | bc) min"
 	fi
 
+	if [[ $((LINE_INDEX%1000)) -eq 0 ]]
+	then
+		if [[ $LOGFILE != "" ]] || [[ $ERRORFILE != "" ]] 
+		then
+			. ./archive_logfile.sh $OBJECT_ID
+			# rm "$LOGFILE" # && rm "$ERRORFILE"
+		fi
+	fi
+
+	DISK_USAGE=$(df --output=pcent $DUMP_DIR | tail -n 1 | tr -d '[:space:]|%')
+	if [[ $DISK_USAGE -gt 90 ]]
+	then
+		. ./write_log.sh WARN "Disk usage over 90%, exiting"
+		exit
+	else
+		. ./write_log.sh "Current disk usage: $DISK_USAGE%"
+	fi
 	LINE_INDEX=$((LINE_INDEX+1))
 done
 

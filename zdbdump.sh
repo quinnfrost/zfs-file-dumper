@@ -4,7 +4,7 @@
 # Only print info
 DRYRUN="0"
 # Dump even if file exists
-FORCE="1"
+FORCE="0"
 NOEXCLUDE="0"
 # Flags used by the zdb -R, rdv mean dump raw, decompress, and verbose on decompress
 RFLAGS="r"
@@ -32,11 +32,11 @@ CREATION_TIME=""
 OFFSETS=""
 OFFSET_LEN=""
 
-if [[ $LOGFILE != "" ]] || [[ $ERRORFILE != "" ]] 
-then
-	. ./archive_logfile.sh $OBJECT_ID
-	# rm "$LOGFILE" # && rm "$ERRORFILE"
-fi
+# if [[ $LOGFILE != "" ]] || [[ $ERRORFILE != "" ]] 
+# then
+# 	. ./archive_logfile.sh $OBJECT_ID
+# 	# rm "$LOGFILE" # && rm "$ERRORFILE"
+# fi
 # OBJECT_INFO=$($ZDB -e -AAA -ddddd "${POOLNAME}${DATASET}" $OBJECT_ID)
 #! Parse object info
 . ./object_parser.sh $OBJECT_ID
@@ -160,7 +160,8 @@ SUM_INFILE_LSIZE="0"
 
 # Check if temp file name is taken
 TEMP_FILENAME="dump${RANDOM}.tmp"
-if [ -e "$FILE_PATH$TEMP_FILENAME" ]
+if [ -e "$FILE_PATH$TEMP_FILENAME" ] \
+|| [[ $FILE_PATH$TEMP_FILENAME = "" ]]
 then
 	. ./write_log.sh WARN "Temp file conflict"
 	exit
@@ -220,11 +221,11 @@ do
 				then
 					RFLAGS="r"
 					. ./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' >> ./stderrout.log)
+					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
 				else
 					RFLAGS="rdv"
 					. ./write_log.sh "Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' >> ./stderrout.log)
+					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
 				fi
 			fi
 			# Todo: 下面这部分可以考虑挪到大判断之外
@@ -237,6 +238,7 @@ do
 					. ./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
 					# [[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
 					[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) conv=notrunc $STATUSDD
+					[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to write file" && exit	
 					DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
 					. ./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 				else
@@ -290,18 +292,19 @@ then
 	then
 		RFLAGS="r"
 		. ./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' >>./stderrout.log)
+		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >>./stderrout.log)
 	else
 		RFLAGS="rdv"
 		. ./write_log.sh "Started to dump last compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/Found vdev:/d' >> ./stderrout.log)
+		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
 	fi
 
 	if [[ -e "$FILE_PATH$FILE_NAME" ]]
 	then
 		DD_START_TIME=$(date +%s%3N)
 		. ./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
-		[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
+		[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
+		[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to write file" && exit		
 		DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
 		. ./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 	else
