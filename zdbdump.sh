@@ -91,7 +91,8 @@ then
 fi
 #! Check if file exists. If so, check time and size to determine if it needs to dump again.
 if [ -e "$FILE_PATH$FILE_NAME" ] \
-&& [[ $SKIP -ne 1 ]]
+&& [[ $SKIP -ne 1 ]] \
+&& [[ $DRYRUN -ne 1 ]]
 then
 	# . ./write_log.sh "File exists"
 	EXIST_SIZE=$(stat --printf="%s" "$FILE_PATH$FILE_NAME")
@@ -131,12 +132,12 @@ then
 	if [[ $SIZECORRECT = "1" ]] && [[ $TIMECORRECT = "1" ]] && [[ ! $FORCE -ne 0 ]]
 	then
 		. ./write_log.sh WARN "Identical file of $FILE_PATH$FILE_NAME found, skipping"
-		[ $DRYRUN -ne 1 ] && SKIP="1"
+		SKIP="1"
 	else
 		[[ $FORCE -eq 0 ]] && . ./write_log.sh WARN "File with same name $FILE_PATH$FILE_NAME found but different($SIZECORRECT $TIMECORRECT), removing and dump again"
 		[[ $FORCE -eq 1 ]] && . ./write_log.sh WARN "File with same name $FILE_PATH$FILE_NAME found but force flag is set($FORCE), removing and dump again"
 		[[ $FILE_PATH$FILE_NAME != "" ]] && rm "$FILE_PATH$FILE_NAME"
-		[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to remove exist file" && exit
+		[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to remove exist file" && exit 1
 	fi
 fi
 
@@ -164,7 +165,7 @@ if [ -e "$FILE_PATH$TEMP_FILENAME" ] \
 || [[ $FILE_PATH$TEMP_FILENAME = "" ]]
 then
 	. ./write_log.sh WARN "Temp file conflict"
-	exit
+	exit 1
 	# rm "$FILE_PATH$TEMP_FILENAME"
 	# [[ $? -ne 0 ]] && . ./write_log.sh WARN "No temp file removed"
 fi
@@ -238,13 +239,13 @@ do
 					. ./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
 					# [[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
 					[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) conv=notrunc $STATUSDD
-					[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to write file" && exit	
+					[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Failed to write file" && exit 1
 					DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
 					. ./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 				else
 					. ./write_log.sh "File ${FILE_PATH}${FILE_NAME} not yet exist, renaming temp file"
 					[[ $DRYRUN -ne 1 ]] && mv "${FILE_PATH}${TEMP_FILENAME}" "${FILE_PATH}${FILE_NAME}"
-					[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to rename temp file" && exit
+					[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Failed to rename temp file" && exit 1
 				fi
 				[[ $DRYRUN -ne 1 ]] && :> "$FILE_PATH$TEMP_FILENAME" 
 
@@ -278,7 +279,7 @@ do
 		# echo ------------------------------
 	else
 		. ./write_log.sh WARN "Cannot parse offset:lsize/psize of $OBJECT_ID at $FILE_PATH$FILE_NAME"
-		exit
+		exit 1
 	fi
 	INDEX=$((INDEX+1))
 	# [[ $INDEX -eq 10 ]] && exit
@@ -304,13 +305,13 @@ then
 		DD_START_TIME=$(date +%s%3N)
 		. ./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
 		[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
-		[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to write file" && exit		
+		[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Failed to write file" && exit 1
 		DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
 		. ./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 	else
 		. ./write_log.sh "File ${FILE_PATH}${FILE_NAME} not yet exist, renaming temp file"
 		[[ $DRYRUN -ne 1 ]] && mv "${FILE_PATH}${TEMP_FILENAME}" "${FILE_PATH}${FILE_NAME}"
-		[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to rename temp file" && exit
+		[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Failed to rename temp file" && exit 1
 	fi
 
 
@@ -322,8 +323,8 @@ fi
 if [ -e "$FILE_PATH$TEMP_FILENAME" ]
 then
 	. ./write_log.sh "Removing $FILE_PATH$TEMP_FILENAME"
-	rm "$FILE_PATH$TEMP_FILENAME"
-	[[ $? -ne 0 ]] && . ./write_log.sh WARN "Failed to remove temp file"
+	[[ $DRYRUN -ne 1 ]] && rm "$FILE_PATH$TEMP_FILENAME"
+	[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Failed to remove temp file"
 fi
 
 DUMP_ELAPSED_TIME=$(expr $(date +%s%3N) - $DUMP_START_TIME)
@@ -374,3 +375,5 @@ printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH
 else
 printf '%-14s%-12s%s\n' "$OBJECT_ID" "$(numfmt --to=iec-i $SIZE)" "\"${FILE_PATH}${FILE_NAME}\"" >> "$SKIP_LOG"
 fi # Dump process is skiped
+
+exit 0
