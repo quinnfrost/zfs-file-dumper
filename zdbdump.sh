@@ -10,7 +10,7 @@ NOEXCLUDE="0"
 RFLAGS="r"
 # Batch dd
 BATCHDD="1"
-STATUSDD="status=progress"
+STATUSDD="status=none"
 
 export ZDB_NO_ZLE
 
@@ -70,7 +70,7 @@ then
 
 	if [[ $NOEXCLUDE != "1" ]]
 	then
-		declare -a REGX_EX_PATH=(".*/.recycle/.*")
+		declare -a REGX_EX_PATH=(".*/.recycle/.*" ".*/PVE/disk/.*")
 		for ITEM in "${REGX_EX_PATH[@]}"
 		do
 			if [[ "$FILE_PATH" =~ $ITEM ]]
@@ -79,6 +79,27 @@ then
 				SKIP="1"
 			fi
 		done
+
+		if [[ $SIZE -gt 53687091200 ]] \
+		&& [[ $SKIP -ne 1 ]]
+		then
+			. ./write_log.sh WARN "Object file \"$FILE_PATH$FILE_NAME\" match exclude rule size ($(numfmt --to=iec-i $SIZE)), skipping"
+			SKIP="1"
+		fi
+
+		if [[ $SKIP -ne 1 ]]
+		then
+			declare -a REGX_EX_PATH=(".*/PVE/dump/.*")
+			for ITEM in "${REGX_EX_PATH[@]}"
+			do
+				if [[ "$FILE_PATH" =~ $ITEM ]] \
+				&& [[ $SIZE -gt 10737418240 ]]
+				then
+					. ./write_log.sh WARN "Object file \"$FILE_PATH$FILE_NAME\" match exclude rule $ITEM and size ($(numfmt --to=iec-i $SIZE)), skipping"
+					SKIP="1"
+				fi
+			done
+		fi
 	fi
 fi
 
@@ -214,7 +235,8 @@ do
 		if ([[ 0x$NEXT_OFFSET -ne 0x${BASH_REMATCH[2]} ]] \
 		&& [[ 0x$NEXT_OFFSET -ne 0x00 ]]) \
 		|| [[ 0x$SUM_PSIZE -ge 0x1000000 ]] \
-		|| [[ 0x$CURRENT_LSIZE -ne 0x$CURRENT_PSIZE ]]
+		|| [[ 0x$CURRENT_LSIZE -ne 0x$CURRENT_PSIZE ]] \
+		|| [[ 0x$SUM_LSIZE -ne 0x$SUM_PSIZE ]]
 		then
 			if [[ 0x$SUM_PSIZE -ne 0x00 ]] # If the first block is a compressed block, there is nothing to dump, so don't
 			then
@@ -223,10 +245,12 @@ do
 					RFLAGS="r"
 					. ./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
+					[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Dump error at $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS" && exit 1
 				else
 					RFLAGS="rdv"
 					. ./write_log.sh "Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
+					[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Dump error at $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS" && exit 1
 				fi
 			fi
 			# Todo: 下面这部分可以考虑挪到大判断之外
@@ -294,10 +318,12 @@ then
 		RFLAGS="r"
 		. ./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >>./stderrout.log)
+		[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Dump error at $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS" && exit 1
 	else
 		RFLAGS="rdv"
 		. ./write_log.sh "Started to dump last compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
 		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
+		[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Dump error at $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS" && exit 1
 	fi
 
 	if [[ -e "$FILE_PATH$FILE_NAME" ]]
@@ -337,17 +363,13 @@ if [ $DRYRUN -ne 1 ]
 then
 	# DUMP_FILESIZE=$(du -k "$FILE_PATH$FILE_NAME" | cut -f1)
 	DUMP_FILESIZE=$(stat --printf="%s" "$FILE_PATH$FILE_NAME")
-	if [[ $SIZE -gt $DUMP_FILESIZE ]]
+	truncate --size=$SIZE "$FILE_PATH$FILE_NAME"
+	if [[ $? -eq 0 ]]
 	then
-		. ./write_log.sh WARN "Dumped file at $FILE_PATH$FILE_NAME is smaller than it should be($DUMP_FILESIZE->$SIZE), skipped truncate"
+		. ./write_log.sh "Truncated file with size ${SIZE}"
 	else
-		truncate --size=$SIZE "$FILE_PATH$FILE_NAME"
-		if [[ $? -eq 0 ]]
-		then
-			. ./write_log.sh "Truncated file with size ${SIZE}"
-		else
-			. ./write_log.sh WARN "Truncate failed"
-		fi
+		. ./write_log.sh WARN "Truncate failed"
+		exit 1
 	fi
 else
 	. ./write_log.sh "Truncate file with size ${SIZE}"
