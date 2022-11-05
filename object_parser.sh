@@ -139,9 +139,9 @@ fi
 	# echo $CREATION_TIME
 	# echo $SIZE
 	# echo $DUMP_OFFSET
-	# echo ${OFFSETS[@]}
+	# echo ${#OFFSETS[@]}
 	# echo $OFFSET_LEN
-	# echo ${INFILE_OFFSETS[@]}
+	# echo ${#INFILE_OFFSETS[@]}
 
 PARSE_ELAPSED_TIME=$(expr $(date +%s%3N) - $PARSE_START_TIME)
 . ./write_log.sh "Finished parsing $OBJECT_ID at \"$FILE_PATH$FILE_NAME\" in $(echo "scale=3; $PARSE_ELAPSED_TIME / 1000" | bc) s"

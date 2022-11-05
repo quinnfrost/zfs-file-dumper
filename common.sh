@@ -1,18 +1,17 @@
 ZDB="/usr/local/sbin/zdb"
-DUMP_DIR="/mnt/zdbdump/smbfiles"
-# DUMP_DIR="./zdbdump"
+DUMP_DIR="./zdbdump"
 # TEMP_FILENAME="dump.tmp"
-POOLNAME="hdd-1T"
-DATASET="smbfiles"
-QUIET="1"
-LOGFILE="./dumpinfo.log"
-ERRORFILE="./dumperr.log"
+POOLNAME="poolname"
+DATASET="dataset"
+QUIET="0"
+# LOGFILE="./dumpinfo.log"
+# ERRORFILE="./dumperr.log"
 LOGARCHIVE_PATH="./log/"
-SKIP_LOG="./skipped_file.txt"
+SKIP_LOG="./skipped_file_downloads.txt"
 
-DUMP_OBJECT_ID_FILENAME="./objects.txt"
-DUMP_EMBEDDED_FILENAME="./embedded_objects.txt"
-DUMP_ZEROED_FILENAME="./zero_sized_objects.txt"
+DUMP_OBJECT_ID_FILENAME="./objects_downloads.txt"
+DUMP_EMBEDDED_FILENAME="./embedded_objects_downloads.txt"
+DUMP_ZEROED_FILENAME="./zero_sized_objects_downloads.txt"
 # param 1: file
 # param 2: offset
 # param 3: value

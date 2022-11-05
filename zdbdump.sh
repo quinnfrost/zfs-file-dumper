@@ -5,7 +5,7 @@
 DRYRUN="0"
 # Dump even if file exists
 FORCE="0"
-NOEXCLUDE="0"
+NOEXCLUDE="1"
 # Flags used by the zdb -R, rdv mean dump raw, decompress, and verbose on decompress
 RFLAGS="r"
 # Batch dd
@@ -70,7 +70,7 @@ then
 
 	if [[ $NOEXCLUDE != "1" ]]
 	then
-		declare -a REGX_EX_PATH=(".*/.recycle/.*" ".*/PVE/disk/.*")
+		declare -a REGX_EX_PATH=(".*/.recycle/.*")
 		for ITEM in "${REGX_EX_PATH[@]}"
 		do
 			if [[ "$FILE_PATH" =~ $ITEM ]]
@@ -80,26 +80,33 @@ then
 			fi
 		done
 
-		if [[ $SIZE -gt 53687091200 ]] \
-		&& [[ $SKIP -ne 1 ]]
-		then
-			. ./write_log.sh WARN "Object file \"$FILE_PATH$FILE_NAME\" match exclude rule size ($(numfmt --to=iec-i $SIZE)), skipping"
-			SKIP="1"
-		fi
+		# if [[ ${#OFFSETS[@]} -gt 100000 ]] \
+		# && [[ $SKIP -ne 1 ]]
+		# then
+		# 	. ./write_log.sh WARN "Object file \"$FILE_PATH$FILE_NAME\" match exclude rule block count (${#OFFSETS[@]}), skipping"
+		# 	SKIP="1"
+		# fi
 
-		if [[ $SKIP -ne 1 ]]
-		then
-			declare -a REGX_EX_PATH=(".*/PVE/dump/.*")
-			for ITEM in "${REGX_EX_PATH[@]}"
-			do
-				if [[ "$FILE_PATH" =~ $ITEM ]] \
-				&& [[ $SIZE -gt 10737418240 ]]
-				then
-					. ./write_log.sh WARN "Object file \"$FILE_PATH$FILE_NAME\" match exclude rule $ITEM and size ($(numfmt --to=iec-i $SIZE)), skipping"
-					SKIP="1"
-				fi
-			done
-		fi
+		# if [[ $SIZE -gt $((10737418240*2)) ]] \
+		# && [[ $SKIP -ne 1 ]]
+		# then
+		# 	. ./write_log.sh WARN "Object file \"$FILE_PATH$FILE_NAME\" match exclude rule size ($(numfmt --to=iec-i $SIZE)), skipping"
+		# 	SKIP="1"
+		# fi
+
+		# if [[ $SKIP -ne 1 ]]
+		# then
+		# 	declare -a REGX_EX_PATH=(".*/PVE/dump/.*")
+		# 	for ITEM in "${REGX_EX_PATH[@]}"
+		# 	do
+		# 		if [[ "$FILE_PATH" =~ $ITEM ]] \
+		# 		&& [[ $SIZE -gt 10737418240 ]]
+		# 		then
+		# 			. ./write_log.sh WARN "Object file \"$FILE_PATH$FILE_NAME\" match exclude rule $ITEM and size ($(numfmt --to=iec-i $SIZE)), skipping"
+		# 			SKIP="1"
+		# 		fi
+		# 	done
+		# fi
 	fi
 fi
 
@@ -181,9 +188,10 @@ SUM_INFILE_OFFSET="0"
 SUM_INFILE_LSIZE="0"
 
 # Check if temp file name is taken
-TEMP_FILENAME="dump${RANDOM}.tmp"
-if [ -e "$FILE_PATH$TEMP_FILENAME" ] \
-|| [[ $FILE_PATH$TEMP_FILENAME = "" ]]
+# TEMP_FILENAME="dump${RANDOM}.tmp"
+TEMP_FILE=$(mktemp --tmpdir="${FILE_PATH}" XXXXXX.tmp)
+if [ ! -e "$TEMP_FILE" ] \
+|| [[ $TEMP_FILE = "" ]]
 then
 	. ./write_log.sh WARN "Temp file conflict"
 	exit 1
@@ -232,6 +240,7 @@ do
 		#! 		update NEXT_OFFSET to 0
 		#! 		update SUM_OFFSET to 0
 		#! 		update SUM_PSIZE to 0
+		# Todo: 更优雅地处理文件内偏移，用 parallel 加速
 		if ([[ 0x$NEXT_OFFSET -ne 0x${BASH_REMATCH[2]} ]] \
 		&& [[ 0x$NEXT_OFFSET -ne 0x00 ]]) \
 		|| [[ 0x$SUM_PSIZE -ge 0x1000000 ]] \
@@ -244,16 +253,17 @@ do
 				then
 					RFLAGS="r"
 					. ./write_log.sh "Started to dump block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
+					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "$TEMP_FILE" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
 					[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Dump error at $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS" && exit 1
 				else
 					RFLAGS="rdv"
 					. ./write_log.sh "Started to dump compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
+					[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS 1>> "$TEMP_FILE" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
 					[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Dump error at $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS" && exit 1
 				fi
 			fi
 			# Todo: 下面这部分可以考虑挪到大判断之外
+			# Todo: 文件内偏移位置可能有错
 			if [[ 0x$NEXT_INFILE_OFFSET -ne 0x${INFILE_OFFSETS[$INDEX]} ]] || [[ $BATCHDD -ne 1 ]]
 			then
 				# For the first segment of the file
@@ -262,16 +272,16 @@ do
 					DD_START_TIME=$(date +%s%3N)
 					. ./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
 					# [[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" bs=1 seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
-					[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) conv=notrunc $STATUSDD
+					[[ $DRYRUN -ne 1 ]] && dd if="$TEMP_FILE" of="$FILE_PATH$FILE_NAME" seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) conv=notrunc $STATUSDD
 					[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Failed to write file" && exit 1
 					DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
 					. ./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 				else
 					. ./write_log.sh "File ${FILE_PATH}${FILE_NAME} not yet exist, renaming temp file"
-					[[ $DRYRUN -ne 1 ]] && mv "${FILE_PATH}${TEMP_FILENAME}" "${FILE_PATH}${FILE_NAME}"
+					[[ $DRYRUN -ne 1 ]] && mv "$TEMP_FILE" "${FILE_PATH}${FILE_NAME}"
 					[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Failed to rename temp file" && exit 1
 				fi
-				[[ $DRYRUN -ne 1 ]] && :> "$FILE_PATH$TEMP_FILENAME" 
+				[[ $DRYRUN -ne 1 ]] && :> "$TEMP_FILE" 
 
 				SUM_INFILE_OFFSET=${INFILE_OFFSETS[$INDEX]}
 				SUM_INFILE_LSIZE=$CURRENT_LSIZE
@@ -317,12 +327,12 @@ then
 	then
 		RFLAGS="r"
 		. ./write_log.sh "Started to dump last block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >>./stderrout.log)
+		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "$TEMP_FILE" 2> >(sed -e '/^Found vdev/,/^lz4/d' >>./stderrout.log)
 		[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Dump error at $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS" && exit 1
 	else
 		RFLAGS="rdv"
 		. ./write_log.sh "Started to dump last compressed block $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS at $SUM_INDEX-$((INDEX-1))($((INDEX-SUM_INDEX))) of $((OFFSET_LEN-1)) blocks"
-		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "${FILE_PATH}${TEMP_FILENAME}" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
+		[[ $DRYRUN -ne 1 ]] && $ZDB --read-block -e $POOLNAME $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS >> "$TEMP_FILE" 2> >(sed -e '/^Found vdev/,/^lz4/d' >> ./stderrout.log)
 		[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Dump error at $VDEV:$SUM_OFFSET:$SUM_LSIZE/$SUM_PSIZE:$RFLAGS" && exit 1
 	fi
 
@@ -330,13 +340,13 @@ then
 	then
 		DD_START_TIME=$(date +%s%3N)
 		. ./write_log.sh "Writing $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET)"
-		[[ $DRYRUN -ne 1 ]] && dd if="${FILE_PATH}${TEMP_FILENAME}" of="$FILE_PATH$FILE_NAME" seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
+		[[ $DRYRUN -ne 1 ]] && dd if="$TEMP_FILE" of="$FILE_PATH$FILE_NAME" seek=$(printf "%d\n" 0x$SUM_INFILE_OFFSET) count=$(printf "%d\n" 0x$SUM_INFILE_LSIZE) conv=notrunc $STATUSDD
 		[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Failed to write file" && exit 1
 		DD_ELAPSED_TIME=$(expr $(date +%s%3N) - $DD_START_TIME)
 		. ./write_log.sh "Written $SUM_INFILE_LSIZE bytes into $(printf "%d\n" 0x$SUM_INFILE_OFFSET)($SUM_INFILE_OFFSET) in $(echo "scale=3; $DD_ELAPSED_TIME / 1000" | bc) s"
 	else
 		. ./write_log.sh "File ${FILE_PATH}${FILE_NAME} not yet exist, renaming temp file"
-		[[ $DRYRUN -ne 1 ]] && mv "${FILE_PATH}${TEMP_FILENAME}" "${FILE_PATH}${FILE_NAME}"
+		[[ $DRYRUN -ne 1 ]] && mv "$TEMP_FILE" "${FILE_PATH}${FILE_NAME}"
 		[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Failed to rename temp file" && exit 1
 	fi
 
@@ -346,10 +356,10 @@ then
 # 	. ./write_log.sh WARN "Offset in question: $VDEV:$SUM_OFFSET:$SUM_PSIZE"
 fi
 # Remove temp file
-if [ -e "$FILE_PATH$TEMP_FILENAME" ]
+if [ -e "$TEMP_FILE" ]
 then
-	. ./write_log.sh "Removing $FILE_PATH$TEMP_FILENAME"
-	[[ $DRYRUN -ne 1 ]] && rm "$FILE_PATH$TEMP_FILENAME"
+	. ./write_log.sh "Removing $TEMP_FILE"
+	[[ $DRYRUN -ne 1 ]] && rm "$TEMP_FILE"
 	[[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]] && . ./write_log.sh WARN "Failed to remove temp file"
 fi
 

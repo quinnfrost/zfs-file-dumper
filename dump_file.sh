@@ -2,12 +2,12 @@
 
 . ./common.sh
 
-DRYRUN="0"
+DRYRUN="1"
 
-BATCH_SIZE="8"
+BATCH_SIZE="100"
 
 CHECKPOINT_FILE="./dump_checkpoint.txt"
-DUMP_FILELIST="./plainfilelist.txt"
+DUMP_FILELIST="./dump_list.txt"
 
 if [[ $LOGFILE != "" ]] || [[ $ERRORFILE != "" ]] 
 then
@@ -60,7 +60,7 @@ do
 	done # Batch
 
 	. ./write_log.sh "----Processing ${OBJECT_IDS[@]} at ($LINE_INDEX~$((LINE_INDEX+BATCH_SIZE-1)))/$((LINE_COUNT))----"
-	[[ $DRYRUN -ne 1 ]] && parallel -j${BATCH_SIZE} --line-buffer --halt soon,fail=1 ./zdbdump.sh {} ::: ${OBJECT_IDS[@]}
+	[[ $DRYRUN -ne 1 ]] && parallel -j8 --line-buffer --halt soon,fail=1 ./zdbdump.sh {} ::: ${OBJECT_IDS[@]}
 	if [[ $? -ne 0 ]] && [[ $DRYRUN -ne 1 ]]
 	then
 		. ./write_log.sh WARN "Parallel job failed at ($LINE_INDEX~$((LINE_INDEX+BATCH_SIZE-1)))/$((LINE_COUNT)), processing ${OBJECT_IDS[@]}"
