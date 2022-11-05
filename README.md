@@ -1,15 +1,19 @@
 # zfs-file-dumper
-A simple shell script to dump file from zfs pools.
+A simple shell script to dump file from unimportable zfs pools.
 It uses the zfs debug util (zdb) to perform all the operation on the zfs pools and datasets. The script simply automated the process.
+Used on an unencrypted, lz4 compressed, deadlist failed single striped vdev datapool.
 
-# What this script can do
-* Dump regular files in zfs dataset by object id
-	- File types that are tested (by myself): normal and compressed files (lz4, but others should work), large files that occupy mutiple blocks (either blocks are consistent or not), files with holes in the middle (.iso or partial downloads)
-* Dump and parse file info and automatically apply to the dump file
-	- File info that can be extracted and apply to the dump file: file name, relative path in its dataset, change time, original size
+# note
+There is something wrong when dumping files with holes like disk image, ISOs and partial complete downloads though some of them can be opened and working but the hash wont match the orignal file so it better be discarded and download again. The script was meant to deal with that but I mess it up somehow.
 
-# What this script can't do
-* Get your pool back alive
-* Dump files that has zero in size
-* Dump files that is embedded in its parent dnode, mostly some very small files
-* Extract and apply file extended attribute (user.xattr field)
+# usage
+1. Set pool, dataset name, and other stuff in *common.sh*
+
+2. Use
+	```
+	zdb -e -AAA -ddddd "POOLNAME/DATASETNAME" 0:-1:f > "./plainfiledump.txt"
+	```
+	to grab a list of all file objects in the dataset, search file name for the desired file, get the numerical ID under the OBJECT.
+	Note that the list can be very large (GBs).
+
+3. ./zdbdump.sh $OBJECT_ID
